@@ -1,51 +1,9 @@
 WW_pri_opt <- function(X,y,C){
-    
   class_idx <- sort(unique(y))
-  # X1 <- X[y==class_idx[1],]
-  # X2 <- X[y==class_idx[2],]
-  # X3 <- X[y==class_idx[3],]
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
   n <- nrow(X)
   p <- ncol(X)
   m <- length(class_idx)
-  # w1 <- Variable(p)
-  # w2 <- Variable(p)
-  # w3 <- Variable(p)
-  # b1 <- Variable(1)
-  # b2 <- Variable(1)
-  # b3 <- Variable(1)
-  # 
-  # slack1 <- Variable(rows = nrow(X1), cols = 2)
-  # slack2 <- Variable(rows = nrow(X2), cols = 2)
-  # slack3 <- Variable(rows = nrow(X3), cols = 2)
-  # 
-  # 
-  # objective <- Minimize(sum_squares(vstack(w1,w2,w3))/2 +  C*(sum_entries(slack1) + sum_entries(slack2) + sum_entries(slack3)))
-  # 
-  # constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
-  #                     X1 %*% (w1 - w2) + b1 - b2 >= 1-slack1[,1],
-  #                     X1 %*% (w1 - w3) + b1 - b3 >= 1-slack1[,2],
-  #                     X2 %*% (w2 - w1) + b2 - b1 >= 1-slack2[,1],
-  #                     X2 %*% (w2 - w3) + b2 - b3 >= 1-slack2[,2],
-  #                     X3 %*% (w3 - w1) + b3 - b1 >= 1-slack3[,1],
-  #                     X3 %*% (w3 - w2) + b3 - b2 >= 1-slack3[,2],
-  #                     slack1 >=0,
-  #                     slack2 >=0,
-  #                     slack3 >=0)
-  # 
-  # WW <- Problem(objective, constraints)
-  # CVXR_WW <- solve(WW, solver = "MOSEK")
-  # CVXR_WW_w1 <- CVXR_WW$getValue(w1)
-  # CVXR_WW_b1 <- CVXR_WW$getValue(b1)
-  # CVXR_WW_w2 <- CVXR_WW$getValue(w2)
-  # CVXR_WW_b2 <- CVXR_WW$getValue(b2)
-  # CVXR_WW_w3 <- CVXR_WW$getValue(w3)
-  # CVXR_WW_b3 <- CVXR_WW$getValue(b3)
-  # 
-  # beta1 <- c(CVXR_WW_w1,CVXR_WW_b1)
-  # beta2 <- c(CVXR_WW_w2,CVXR_WW_b2)
-  # beta3 <- c(CVXR_WW_w3,CVXR_WW_b3)
-  # CVXR_WW_primary_beta <- rbind(beta1,beta2,beta3)
   
   w <- Variable(rows = m, cols = p)
   b <- Variable(m)
