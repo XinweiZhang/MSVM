@@ -1,5 +1,5 @@
 clear
-load Duchi-3class.mat;
+load ../Duchi-3class.mat;
 
 n1 = size(X1);
 n1 = n1(1);
@@ -8,7 +8,7 @@ n2 = n2(1);
 n3 = size(X3);
 n3 = n3(1);
 
-cvx_begin
+cvx_begin quiet
     variables w1(p) w2(p) w3(p) b1 b2 b3;
     variables slack1(n1,m) slack2(n2,m) slack3(n3,m);
     variables xi1(n1) xi2(n2) xi3(n3); 
@@ -17,7 +17,7 @@ cvx_begin
     subject to
         w1 + w2 + w3 == 0;
         b1 + b2 + b3 == 0;
-        slack1(:,1) == 1;
+        slack1(1:n1,1) == 1;
         X1*(w1 - w2) + b1 - b2 >= 1-slack1(:,2);
         X1*(w1 - w3) + b1 - b3 >= 1-slack1(:,3);
         slack2(:,2) == 1;
@@ -40,9 +40,108 @@ cvx_begin
         xi3 >= norms_largest(slack3,3,2)/3-1/3;
 cvx_end
 
+[w1.' b1; w2.' b2; w3.' b3]
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%2
+n = n1 + n2 + n3;
+
+cn1 = n1;
+cn2 = n1 + n2;
+cn3 = n1 + n2 + n3;
+
+cvx_begin quiet
+    variables w1(p) w2(p) w3(p) b1 b2 b3;
+    variables slack(n,m) xi(n); 
+
+    minimize( sum_square([w1;w2;w3])/2 + C* sum(xi))
+    subject to
+        w1 + w2 + w3 == 0;
+        b1 + b2 + b3 == 0;
+        slack(1:cn1,1) == 1;
+        X1*(w1 - w2) + b1 - b2 >= 1-slack(1:cn1,2);
+        X1*(w1 - w3) + b1 - b3 >= 1-slack(1:cn1,3);
+        slack((cn1+1):cn2,2) == 1;
+        X2*(w2 - w1) + b2 - b1 >= 1-slack((cn1+1):cn2,1);
+        X2*(w2 - w3) + b2 - b3 >= 1-slack((cn1+1):cn2,3);
+        slack((cn2+1):cn3,3) == 1;
+        X3*(w3 - w1) + b3 - b1 >= 1-slack((cn2+1):cn3,1);
+        X3*(w3 - w2) + b3 - b2 >= 1-slack((cn2+1):cn3,2);
+        slack >= 0;
+        xi >= norms_largest(slack,1,2)-1; 
+        xi >= norms_largest(slack,2,2)/2-1/2;
+        xi >= norms_largest(slack,3,2)/3-1/3;
+cvx_end
+[w1.' b1; w2.' b2; w3.' b3]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%3
+% 
+% w = [w1';w2';w3']
+% b = [b1,b2,b3]'
+% (([X, ones(n,1)]*[w,b]).*Y_mat)*ones(m,m) - [X, ones(n,1)]*[w,b] 
+% X1*(w1 - w2) + b1 - b2 
+% 
+% X1*w1 + b1 
+% 
+% 
+% [X, ones(n,1)]*[w,b]'
+
+cvx_begin
+    variables w(m,p) b(m) slack(n,m) xi(n);
+    minimize( sum(sum_square(w))/2 + C* sum(xi))
+    subject to
+        sum(w) == 0;
+        sum(b) == 0;     
+        ([X, ones(n,1)]*[w,b]'.*Y_mat)*ones(m,m) - [X, ones(n,1)]*[w,b]' >= 1-slack;
+        slack >= 0;
+        xi >= norms_largest(slack,1,2)-1; 
+        xi >= norms_largest(slack,2,2)/2-1/2;
+        xi >= norms_largest(slack,3,2)/3-1/3;
+        xi >= 0;
+cvx_end
+
 
 
 [w1.' b1; w2.' b2; w3.' b3]
+
+[w, b]
+
+sum(ones(2,2,3),3)
+
+%%%%%%%%%%%%%%%%%4
+a = (rand(n,m)); % your matrix
+b = repmat(a,[1,1,m]);
+permute(b,[1,3,2])
+b(:,:,1)
+b(:,:,2)
+cvx_begin
+    variables w(m,p) b(m) slack(n,m) xi(n) t(n,m) u(n,m,m);
+    minimize( sum(sum_square(w))/2 + C* sum(xi))
+    subject to
+        sum(w) == 0;
+        sum(b) == 0;     
+        ([X, ones(n,1)]*[w,b]'.*Y_mat)*ones(m,m) - [X, ones(n,1)]*[w,b]' >= 1-slack;
+        slack >= 0;
+%         slack(Y_mat==1)==1;
+%         xi*ones(1,m) >= t - (ones(n,1)*1./(1:m)).*sum(u,3) - (ones(n,1)*1./(1:m)),[],dim=2;
+        xi>= max(t - (ones(n,1)*1./(1:m)).*sum(u,3) - (ones(n,1)*1./(1:m)),[],2);
+        repmat(t,[1,1,m]) + u >= permute(repmat(slack,[1,1,m]),[1,3,2]);
+        u >= 0;
+%         xi >= norms_largest(slack,1,2)-1; 
+%         xi >= norms_largest(slack,2,2)/2-1/2;
+%         xi >= norms_largest(slack,3,2)/3-1/3;
+%         xi >= 0;
+cvx_end
+
+reshape(slack(Y_mat~=1),[n,m-1])
+
+
+
+[w1.' b1; w2.' b2; w3.' b3]
+
+[w, b]
+
 
 
 

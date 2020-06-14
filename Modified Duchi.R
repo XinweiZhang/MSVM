@@ -71,6 +71,33 @@ beta3 <- c(CVXR_M_Duchi_w3,CVXR_M_Duchi_b3)
 
 CVXR_M_Duchi_primary_beta <- rbind(beta1,beta2,beta3)
 
+
+class_idx <- sort(unique(y))
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+n <- nrow(X)
+p <- ncol(X)
+m <- length(class_idx)
+
+w <- Variable(rows = m, cols = p)
+b <- Variable(m)
+slack <- Variable(rows = n, cols = m)
+epsilon <- Variable(n)
+t <- Variable(n*(m-1))
+u <- Variable(rows = n*(m-1), cols = m)
+
+dim(t%*%matrix(1,nrow=1,ncol=m-1))
+
+objective <- Minimize(sum_squares(w)/2 +  C*sum(epsilon))
+constraints <- list( sum_entries(b) == 0,
+                     sum_entries(w, axis = 2) ==0,
+                     ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= (1-Y)*(1-slack),
+                     # vec(t(epsilon%*%matrix(1,ncol=m))) >= t - rep(1/seq(1,m),n)*sum_entries(u,axis=1) - rep(1/seq(1,m),n),
+                     (diag(1,n)%x%matrix(1,nrow=m-1))%*%epsilon >=  rep(seq(1,m-1),n)/rep(seq(2,m),n)*t - 1/rep(seq(2,m),n)*sum_entries(u,axis=1),
+                     t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n)%x%matrix(1,nrow=m-1))%*%slack,
+                     u>=0,
+                     slack >=0)
+
+
 ########plot##############################
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "Modified Duchi")
 
@@ -104,7 +131,10 @@ y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)),rep(4,nrow(X4)))
 m <- 4
 p <- 2
 C <- 1
-writeMat(con="MDuchi-4class.mat", X1 = X1, X2 = X2, X3 = X3, X4 = X4, p=p, m=m, C = C)
+class_idx <- sort(unique(y))
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+
+writeMat(con="MDuchi-4class.mat", X1 = X1, X2 = X2, X3 = X3, X4 = X4, X=X, Y_mat =Y, p=p, m=m, C = C)
 
 w1 <- Variable(p)
 w2 <- Variable(p)

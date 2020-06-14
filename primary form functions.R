@@ -8,11 +8,11 @@ WW_pri_opt <- function(X,y,C){
   w <- Variable(rows = m, cols = p)
   b <- Variable(m)
   slack <- Variable(rows = n, cols = m)
-  objective <- Minimize(sum_squares(w) +  C*sum_entries(slack))
+  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries((1-Y)*slack))
   
   constraints <- list( sum_entries(b) == 0,
                        sum_entries(w, axis = 2) ==0,
-                       ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= 1-slack,
+                       ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >=1-slack,
                        slack >=0)
   
   WW <- Problem(objective, constraints)
@@ -23,160 +23,41 @@ WW_pri_opt <- function(X,y,C){
 
 
 CS_pri_opt <- function(X,y,C){
-  
-  class_idx <- unique(y)
-  X1 <- X[y==class_idx[1],]
-  X2 <- X[y==class_idx[2],]
-  X3 <- X[y==class_idx[3],]
+  class_idx <- sort(unique(y))
+  Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+  n <- nrow(X)
   p <- ncol(X)
+  m <- length(class_idx)
   
-  w1 <- Variable(p)
-  w2 <- Variable(p)
-  w3 <- Variable(p)
-  b1 <- Variable(1)
-  b2 <- Variable(1)
-  b3 <- Variable(1)
+  w <- Variable(rows = m, cols = p)
+  b <- Variable(m)
+  slack <- Variable(rows = n, cols = m)
+  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(max_entries((1-Y)*slack, axis = 1)))
   
-  slack1 <- Variable(rows = nrow(X1))
-  slack2 <- Variable(rows = nrow(X2))
-  slack3 <- Variable(rows = nrow(X3))
-  
-  objective <- Minimize(sum_squares(vstack(w1,w2,w3))/2 +  C*(sum_entries(slack1) + sum_entries(slack2) + sum_entries(slack3)))
-  
-  constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
-                      X1 %*% (w1 - w2) + b1 - b2 >= 1-slack1,
-                      X1 %*% (w1 - w3) + b1 - b3 >= 1-slack1,
-                      X2 %*% (w2 - w1) + b2 - b1 >= 1-slack2,
-                      X2 %*% (w2 - w3) + b2 - b3 >= 1-slack2,
-                      X3 %*% (w3 - w1) + b3 - b1 >= 1-slack3,
-                      X3 %*% (w3 - w2) + b3 - b2 >= 1-slack3,
-                      slack1 >=0,
-                      slack2 >=0,
-                      slack3 >=0)
+  constraints <- list( sum_entries(b) == 0,
+                       sum_entries(w, axis = 2) ==0,
+                       ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= (1-slack),
+                       slack >=0)
   
   CS <- Problem(objective, constraints)
-  CVXR_CS <- solve(CS, solver="MOSEK")
+  CVXR_CS <- solve(CS, solver = "MOSEK")
   
-  CVXR_CS_w1 <- CVXR_CS$getValue(w1)
-  CVXR_CS_b1 <- CVXR_CS$getValue(b1)
-  CVXR_CS_w2 <- CVXR_CS$getValue(w2)
-  CVXR_CS_b2 <- CVXR_CS$getValue(b2)
-  CVXR_CS_w3 <- CVXR_CS$getValue(w3)
-  CVXR_CS_b3 <- CVXR_CS$getValue(b3)
-  
-  beta1 <- c(CVXR_CS_w1,CVXR_CS_b1)
-  beta2 <- c(CVXR_CS_w2,CVXR_CS_b2)
-  beta3 <- c(CVXR_CS_w3,CVXR_CS_b3)
-  CVXR_CS_primary_beta <- rbind(beta1,beta2,beta3)
-  return(CVXR_CS_primary_beta)
+  return(cbind(CVXR_CS$getValue(w),CVXR_CS$getValue(b)))
 }
 
 
-# 
-# Duchi_pri_opt <- function(X,y,C){
-#   class_idx <- unique(y)
-#   X1 <- X[y==class_idx[1],]
-#   X2 <- X[y==class_idx[2],]
-#   X3 <- X[y==class_idx[3],]
-#   n1 = nrow(X1)
-#   n2 = nrow(X2)
-#   n3 = nrow(X3)
-#   p = ncol(X1)
-#   m = length(unique(y))
-#   setup.dir <- "/usr/local/MATLAB/R2020a/toolbox/cvx"
-#   cvxcode <- paste("variables w1(p) w2(p) w3(p) b1 b2 b3",
-#                    "variables slack1(n1,m) slack2(n2,m) slack3(n3,m)",
-#                    "variables xi1(n1) xi2(n2) xi3(n3);minimize( sum_square([w1;w2;w3])/2 + C* sum([xi1;xi2;xi3]))",
-#                    "subject to","w1 + w2 + w3  == 0","b1 + b2 + b3== 0",
-#                    "slack1(:,1) == 1",
-#                    "X1*(w1 - w2) + b1 - b2 >= 1-slack1(:,2)",
-#                    "X1*(w1 - w3) + b1 - b3 >= 1-slack1(:,3)",
-#                    "slack2(:,2) == 1",
-#                    " X2*(w2 - w1) + b2 - b1 >= 1-slack2(:,1)",
-#                    "X2*(w2 - w3) + b2 - b3 >= 1-slack2(:,3)",
-#                    "slack3(:,3) == 1",
-#                    "X3*(w3 - w1) + b3 - b1 >= 1-slack3(:,1)",
-#                    "X3*(w3 - w2) + b3 - b2 >= 1-slack3(:,2)",
-#                    "slack1 >= 0",
-#                    "slack2 >= 0",
-#                    "slack3 >= 0",
-#                    "xi1 >= norms_largest(slack1,1,2)-1",
-#                    "xi2 >= norms_largest(slack2,1,2)-1",
-#                    "xi3 >= norms_largest(slack3,1,2)-1",
-#                    "xi1 >= norms_largest(slack1,2,2)/2-1/2",
-#                    "xi2 >= norms_largest(slack2,2,2)/2-1/2",
-#                    "xi3 >= norms_largest(slack3,2,2)/2-1/2",
-#                    "xi1 >= norms_largest(slack1,3,2)/3-1/3",
-#                    "xi2 >= norms_largest(slack2,3,2)/3-1/3",
-#                    "xi3 >= norms_largest(slack3,3,2)/3-1/3", sep = ";")
-# 
-#   CVXR_Duchi <- CallCVX(cvxcode, const.vars=list(X1=X1, X2=X2, X3=X3, p=p, m=m, C = C, n1=n1,n2=n2,n3=n3),
-#                         opt.var.names=c("w1","w2","w3","b1","b2","b3"), setup.dir=setup.dir, cvx.modifiers="quiet")
-# 
-#   CVXR_Duchi_w1 <- CVXR_Duchi$w1
-#   CVXR_Duchi_w2 <- CVXR_Duchi$w2
-#   CVXR_Duchi_w3 <- CVXR_Duchi$w3
-#   CVXR_Duchi_b1 <- CVXR_Duchi$b1
-#   CVXR_Duchi_b2 <- CVXR_Duchi$b2
-#   CVXR_Duchi_b3 <- CVXR_Duchi$b3
-#   
-#   beta1 <- c(CVXR_Duchi_w1,CVXR_Duchi_b1)
-#   beta2 <- c(CVXR_Duchi_w2,CVXR_Duchi_b2)
-#   beta3 <- c(CVXR_Duchi_w3,CVXR_Duchi_b3)
-# 
-#   CVXR_Duchi_primary_beta <- rbind(beta1,beta2,beta3)
-#   return(CVXR_Duchi_primary_beta)
-# }
-
 
 Duchi_pri_opt <- function(X,y,C){
-  class_idx <- unique(y)
-  X1 <- X[y==class_idx[1],]
-  X2 <- X[y==class_idx[2],]
-  X3 <- X[y==class_idx[3],]
+  class_idx <- sort(unique(y))
+  Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+  n <- nrow(X)
+  p <- ncol(X)
+  m <- length(class_idx)
   
-  
-  p = ncol(X1)
-  m = length(unique(y))
-  Y <- sapply(unique(y), function(id){as.numeric(y==id)})
-  
-  alpha <- Variable(rows = n, cols = m)
-  beta <- Variable(rows = n, cols = m)
-  tau <- Variable(rows = n*m, cols = m)
-  
-  objective <- Maximize(-sum_squares(t(sum_entries(alpha, axis=1)%*%matrix(1,nrow=1,ncol = m)*Y - alpha)%*%X)/2 + 
-                          sum_entries(alpha) - sum_entries(beta*sapply(1:m, function(j){rep(1/j,n)})))
-  
-  constraints <- list(sum_entries(Y*(sum_entries(alpha, axis = 1)%*%matrix(1,nrow=1,ncol = m)), axis = 2) == sum_entries(alpha, axis = 2),
-                      # sum_entries(alpha*Y, axis = 1) ==0,
-                      C - sum_entries(beta, axis =1) ==0, 
-                      vec(beta*sapply(1:m, function(j){rep(1/j,n)}))%*%matrix(1,nrow=1,ncol=m) - tau >=0, 
-                      beta - reshape_expr(sum_entries(tau, axis =1), c(n,m))==0,
-                      # sum_entries(reshape_expr(tau, c(n, m*m))[,1:3], axis=1) - alpha[,1] >=0,
-                      # sum_entries(reshape_expr(tau, c(n, m*m))[,4:6], axis=1) - alpha[,2] >=0,
-                      # sum_entries(reshape_expr(tau, c(n, m*m))[,7:9], axis=1) - alpha[,3] >=0,
-                      alpha>=0,
-                      beta>=0,
-                      tau>=0) 
-  
-  constraints <- c(constraints,lapply(0:(m-1), function(id){
-    sum_entries(reshape_expr(tau, c(n, m*m))[,(id*m+1):((id+1)*m)], axis=1) - alpha[,id+1] >=0}))
-  
-  
-  Duchi_dual <- Problem(objective, constraints)
-  
-  
-  Duchi_dual_time <- system.time(Duchi_dual <- solve(Duchi_dual, solver = "MOSEK"))
-  
-  alpha_sol <- Duchi_dual$getValue(alpha)
-  w <- t(rowSums(alpha_sol)%*%matrix(1,nrow=1,ncol = m)*Y - alpha_sol)%*%X
-  
-  w1 <- w[1,]
-  w2 <- w[2,]
-  w3 <- w[3,]
-  b1 <- Variable(1)
-  b2 <- Variable(1)
-  b3 <- Variable(1)
+  w <- Variable(rows = m, cols = p)
+  b <- Variable(m)
+  slack <- Variable(rows = n, cols = m)
+  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries((1-Y)*slack))
   
   
   slack1 <- Variable(rows = nrow(X1), cols = 3)

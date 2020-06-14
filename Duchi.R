@@ -15,7 +15,9 @@ X3 <- mvrnorm(4,c(0,0),matrix(c(5,0,0,5),nrow=2))
 X <- rbind(X1,X2,X3)
 y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
 C <- 1
-
+n <- nrow(X)
+class_idx <- sort(unique(y))
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
 
 # 
 # p <- 900
@@ -28,8 +30,8 @@ C <- 1
 # X4 <- mvrnorm(300, c(rep(-1,p/2),rep(1,p/2)), diag(v,p))
 # y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)),rep(4,nrow(X3)))
 C <- 1
-writeMat(con="Duchi-3class.mat", X1 = X1, X2 = X2, X3 = X3, p=p, m=m, C = C)
-
+writeMat(con="Duchi-3class.mat", X1 = X1, X2 = X2, X3 = X3, X=X, Y_mat = Y, p=p, m=m, C = C)
+  
 w1 <- Variable(p)
 w2 <- Variable(p)
 w3 <- Variable(p)
@@ -79,10 +81,11 @@ constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
                       slack2 >=0,
                       slack3 >=0)
 
-
 Duchi <- Problem(objective, constraints)
 CVXR_Duchi <- solve(Duchi, solver = "MOSEK")
 
+
+######################################################2
 
 
 CVXR_Duchi_w1 <- CVXR_Duchi$getValue(w1)
@@ -97,6 +100,178 @@ beta2 <- c(CVXR_Duchi_w2,CVXR_Duchi_b2)
 beta3 <- c(CVXR_Duchi_w3,CVXR_Duchi_b3)
 
 Duchi_primary_beta <- rbind(beta1,beta2,beta3)
+
+slack <- Variable(rows = n, cols = 3)
+xi <- Variable(rows = n, cols = 1)
+cn1 <-nrow(X1)
+cn2 <-nrow(X1) + nrow(X2)
+cn3 <-nrow(X1) + nrow(X2) + nrow(X3)
+
+objective2 <- Minimize(sum_squares(vstack(w1,w2,w3))/2 +  C*(sum(xi)))
+constraints2 <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
+                    slack[1:cn1,1] == 1,
+                    X1 %*% (w1 - w2) + b1 - b2 >= 1-slack[1:cn1,2],
+                    X1 %*% (w1 - w3) + b1 - b3 >= 1-slack[1:cn1,3],
+                    slack[(cn1+1):cn2,2] == 1,
+                    X2 %*% (w2 - w1) + b2 - b1 >= 1-slack[(cn1+1):cn2,1],
+                    X2 %*% (w2 - w3) + b2 - b3 >= 1-slack[(cn1+1):cn2,3],
+                    slack[(cn2+1):cn3,3] == 1,
+                    X3 %*% (w3 - w1) + b3 - b1 >= 1-slack[(cn2+1):cn3,1],
+                    X3 %*% (w3 - w2) + b3 - b2 >= 1-slack[(cn2+1):cn3,2],
+                    xi >= max_entries(slack, axis = 1)-1,
+                    xi >= (sum_entries(slack, axis = 1) - min_entries(slack, axis = 1))/2-1/2,
+                    xi >= sum_entries(slack, axis = 1)/3 - 1/3,
+                    slack >=0)
+
+
+
+Duchi2 <- Problem(objective2, constraints2)
+CVXR_Duchi2 <- solve(Duchi2, solver = "MOSEK")
+
+
+
+CVXR_Duchi2_w1 <- CVXR_Duchi2$getValue(w1)
+CVXR_Duchi2_b1 <- CVXR_Duchi2$getValue(b1)
+CVXR_Duchi2_w2 <- CVXR_Duchi2$getValue(w2)
+CVXR_Duchi2_b2 <- CVXR_Duchi2$getValue(b2)
+CVXR_Duchi2_w3 <- CVXR_Duchi2$getValue(w3)
+CVXR_Duchi2_b3 <- CVXR_Duchi2$getValue(b3)
+
+beta1 <- c(CVXR_Duchi2_w1,CVXR_Duchi2_b1)
+beta2 <- c(CVXR_Duchi2_w2,CVXR_Duchi2_b2)
+beta3 <- c(CVXR_Duchi2_w3,CVXR_Duchi2_b3)
+
+Duchi_primary_beta2 <- rbind(beta1,beta2,beta3)
+
+Duchi_primary_beta
+Duchi_primary_beta2
+
+w <- t(cbind(CVXR_Duchi2_w1, CVXR_Duchi2_w2, CVXR_Duchi2_w3))
+b <- c(CVXR_Duchi2_b1, CVXR_Duchi2_b2, CVXR_Duchi2_b3)
+
+
+
+######################################################3
+# ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))
+# 
+# X1 %*% (CVXR_Duchi_w1 - CVXR_Duchi_w2) + CVXR_Duchi_b1 - CVXR_Duchi_b2
+
+
+slack <- Variable(rows = n, cols = 3)
+xi <- Variable(rows = n, cols = 1)
+t <- Variable(n*m)
+u <- Variable(rows = n*m, cols = m)
+
+w <- Variable(rows = m, cols = p)
+b <- Variable(rows = m, cols = 1)
+
+
+
+objective3 <- Minimize(sum_squares(w)/2 +  C*sum(xi))
+constraints3 <- list( sum_entries(b) == 0,
+                     sum_entries(w, axis = 2) ==0,
+                     ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= 1-slack,
+                    xi >= max_entries(slack, axis = 1)-1,
+                    xi >= (sum_entries(slack, axis = 1) - min_entries(slack, axis = 1))/2-1/2,
+                    xi >= sum_entries(slack, axis = 1)/3 - 1/3,
+                    # vec(t(xi%*%matrix(1,ncol=m))) >= t - sum_entries(rep(1/seq(1,m),n)%*%matrix(1,ncol = m)*u,axis=1) - rep(1/seq(1,m),n),
+                    # t%*%matrix(1,nrow=1,ncol=m) + u >=  (diag(1,n)%x%matrix(1,nrow=m))%*%slack,
+                    # u>=0,
+                    slack >=0)
+
+
+
+Duchi3 <- Problem(objective3, constraints3)
+CVXR_Duchi3 <- solve(Duchi3, solver = "MOSEK")
+Duchi_primary_beta3 <- cbind(CVXR_Duchi3$getValue(w),CVXR_Duchi3$getValue(b))
+  
+  
+  Duchi_primary_beta
+  Duchi_primary_beta2
+  Duchi_primary_beta3
+
+######################################################4
+# ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))
+# 
+# X1 %*% (CVXR_Duchi_w1 - CVXR_Duchi_w2) + CVXR_Duchi_b1 - CVXR_Duchi_b2
+
+
+slack <- Variable(rows = n, cols = 3)
+xi <- Variable(rows = n, cols = 1)
+t <- Variable(n*m)
+u <- Variable(rows = n*m, cols = m)
+
+w <- Variable(rows = m, cols = p)
+b <- Variable(rows = m, cols = 1)
+
+
+
+objective4 <- Minimize(sum_squares(w)/2 +  C*sum(xi))
+constraints4 <- list( sum_entries(b) == 0,
+                      sum_entries(w, axis = 2) ==0,
+                      ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= 1-slack,
+                      # xi >= max_entries(slack, axis = 1)-1,
+                      # xi >= (sum_entries(slack, axis = 1) - min_entries(slack, axis = 1))/2-1/2,
+                      # xi >= sum_entries(slack, axis = 1)/3 - 1/3,
+                      vec(t(xi%*%matrix(1,ncol=m))) >= t - sum_entries(rep(1/seq(1,m),n)%*%matrix(1,ncol = m)*u,axis=1) - rep(1/seq(1,m),n),
+                      t%*%matrix(1,nrow=1,ncol=m) + u >=  (diag(1,n)%x%matrix(1,nrow=m))%*%slack,
+                      u>=0,
+                      slack >=0)
+
+
+
+Duchi4 <- Problem(objective4, constraints4)
+CVXR_Duchi4 <- solve(Duchi4, solver = "MOSEK")
+Duchi_primary_beta4 <- cbind(CVXR_Duchi4$getValue(w),CVXR_Duchi4$getValue(b))
+
+
+Duchi_primary_beta
+Duchi_primary_beta2
+Duchi_primary_beta3
+Duchi_primary_beta4
+
+
+  
+#######################
+
+w <- t(cbind(CVXR_Duchi_w1,CVXR_Duchi_w2,CVXR_Duchi_w3))
+b <- c(CVXR_Duchi_b1,CVXR_Duchi_b2,CVXR_Duchi_b3)
+
+class_idx <- sort(unique(y))
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+n <- nrow(X)
+p <- ncol(X)
+m <- length(class_idx)
+((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))
+
+
+w <- Variable(rows = m, cols = p)
+b <- Variable(m)
+slack <- Variable(rows = n, cols = m)
+epsilon <- Variable(n)
+t <- Variable(n*m)
+u <- Variable(rows = n*m, cols = m)
+
+
+
+objective <- Minimize(sum_squares(w)/2 +  C*sum(epsilon))
+constraints <- list( sum_entries(b) == 0,
+                     sum_entries(w, axis = 2) ==0,
+                     ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= 1-slack,
+                     vec(t(epsilon%*%matrix(1,ncol=m))) >= t - sum_entries(rep(1/seq(1,m),n)%*%matrix(1,ncol = m)*u,axis=1) - rep(1/seq(1,m),n),
+                     # (diag(1,n)%x%matrix(1,nrow=m))%*%epsilon >=  rep(1/seq(1,m),n)*(rep(seq(1,m),n)*t - sum_entries(u,axis=1)) - rep(1/seq(1,m),n),
+                     t%*%matrix(1,nrow=1,ncol=m) + u >=  (diag(1,n)%x%matrix(1,nrow=m))%*%slack,
+                     slack*Y == 1,
+                     u>=0,
+                     # epsilon >= max_entries((1-Y)*slack, axis = 1),
+                     slack >=0)
+
+Duchi2 <- Problem(objective, constraints)
+CVXR_Duchi2 <- solve(Duchi2, solver = "MOSEK")
+# CS_pri_opt(X,y,C)
+CVXR_Duchi2$getValue(w)
+CVXR_Duchi2$getValue(b)
+
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "Duchi")
 
 points(X2, col='green')
@@ -246,7 +421,4 @@ Duchi_dual_opt(X,y,C)
 
 
 apply((1+lpred_dif)*((round(alpha_sol,zero_tol) == round(tau_sum,zero_tol)) & round(tau_sum, zero_tol) >0) * (y==1)%*%matrix(1,nrow=1, ncol = m), MARGIN = 2, FUN = min_rm_zero)
-
-
-
 

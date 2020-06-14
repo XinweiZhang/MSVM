@@ -3,6 +3,7 @@ library(MASS)
 
 rm(list = ls())
 setwd("~/Desktop/Multiclass Classification/MSVM Code")
+source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
 set.seed(1322)
 par(mfrow=c(3,2))
 p <- 2
@@ -64,7 +65,7 @@ slack3 <- Variable(rows = nrow(X3), cols = 2)
 # gslack3 <- lapply(seq(1,nrow(X3)), FUN = function(i){g(slack3[i,])})
 
 
-C <- 10
+C <- 1
 objective <- Minimize(sum_squares(vstack(w1,w2,w3)) +  C*(sum_entries(slack1) + sum_entries(slack2) + sum_entries(slack3)))
 
 constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
@@ -93,33 +94,8 @@ beta1 <- c(CVXR_WW_w1,CVXR_WW_b1)
 beta2 <- c(CVXR_WW_w2,CVXR_WW_b2)
 beta3 <- c(CVXR_WW_w3,CVXR_WW_b3)
 CVXR_WW_primary_beta <- rbind(beta1,beta2,beta3)
-
-w <- Variable(rows = m, cols = p)
-b <- Variable(m)
-slack <- Variable(rows = n, cols = m)
-objective <- Minimize(sum_squares(w) +  C*sum_entries(slack))
-
-constraints <- list( sum_entries(b) == 0,
-                     sum_entries(w, axis = 2) ==0,
-                     ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= 1-slack,
-                     slack >=0)
-
-WW <- Problem(objective, constraints)
-CVXR_WW <- solve(WW, solver = "MOSEK")
-
 CVXR_WW_primary_beta
-CVXR_WW$getValue(b)
-
-cbind(CVXR_WW$getValue(w),CVXR_WW$getValue(b))
-
- CVXR_WW_b1 <- 
-CVXR_WW_w2 <- CVXR_WW$getValue(w2)
-CVXR_WW_b2 <- CVXR_WW$getValue(b2)
-CVXR_WW_w3 <- CVXR_WW$getValue(w3)
-CVXR_WW_b3 <- CVXR_WW$getValue(b3)
-
-
-WW(X,y,C)
+WW_pri_opt(X,y,C)
 
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "WW")
 
@@ -160,6 +136,9 @@ X3 <- mvrnorm(20,c(-2,0),matrix(c(5,0,0,5),nrow=2))
 X4 <- mvrnorm(20,c(0,-2),matrix(c(5,0,0,5),nrow=2))
 X <- rbind(X1,X2,X3,X4)
 y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)),rep(4,nrow(X4)))
+Y <- sapply(unique(y), function(id){as.numeric(y==id)})
+
+
 w1 <- Variable(p)
 w2 <- Variable(p)
 w3 <- Variable(p)
@@ -175,7 +154,7 @@ slack2 <- Variable(rows = nrow(X2), cols = 3)
 slack3 <- Variable(rows = nrow(X3), cols = 3)
 slack4 <- Variable(rows = nrow(X4), cols = 3)
 
-objective <- Minimize(sum_squares(vstack(w1,w2,w3,w4)) +  C*(sum_entries(slack1) + sum_entries(slack2) + sum_entries(slack3) + sum_entries(slack4)))
+objective <- Minimize(sum_squares(vstack(w1,w2,w3,w4))/2 +  C*(sum_entries(slack1) + sum_entries(slack2) + sum_entries(slack3) + sum_entries(slack4)))
 
 constraints <- list(w1+w2+w3+w4 == 0, b1+b2+b3+b4 ==0,
                     X1 %*% (w1 - w2) + b1 - b2 >= 1-slack1[,1],
@@ -213,6 +192,11 @@ beta3 <- c(CVXR_WW_w3,CVXR_WW_b3)
 beta4 <- c(CVXR_WW_w4,CVXR_WW_b4)
 CVXR_WW_primary_beta <- rbind(beta1,beta2,beta3,beta4)
 WW_pri_opt(X,y,C)
+CVXR_WW_primary_beta
+
+writeMat(con="WW-4class.mat", X =X, Y = y, Y_mat = Y, p=p, m=m, C = C)
+
+
 
 ###########Verifying the objectives ##################################
 # alpha_sol

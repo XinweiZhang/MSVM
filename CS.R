@@ -1,35 +1,36 @@
-# library(CVXR)
-# library(MASS)
-# 
-# rm(list = ls())
-# setwd("~/Desktop/Multiclass Classification/MSVM Code")
-# set.seed(125)
-# par(mfrow=c(2,2))
-# d <- 2
-# m <- 3
-# mu1 <- c(-3,3)
-# mu2 <- c(3,-3)
-# mu3 <- c(-3,-2)
-# X1 <- mvrnorm(10,mu1,matrix(c(10,0,0,10),nrow=2))
-# X2 <- mvrnorm(10,mu2,matrix(c(10,0,0,10),nrow=2))
-# X3 <- mvrnorm(10,mu3,matrix(c(10,0,0,10),nrow=2))
-# y <- c(rep(1,5),rep(2,5),rep(3,5))
+library(CVXR)
+library(MASS)
 
-# 
+rm(list = ls())
+setwd("~/Desktop/Multiclass Classification/MSVM Code")
+source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
+set.seed(125)
+par(mfrow=c(2,2))
+d <- 2
+m <- 3
+mu1 <- c(-3,3)
+mu2 <- c(3,-3)
+mu3 <- c(-3,-2)
+X1 <- mvrnorm(10,mu1,matrix(c(10,0,0,10),nrow=2))
+X2 <- mvrnorm(10,mu2,matrix(c(10,0,0,10),nrow=2))
+X3 <- mvrnorm(10,mu3,matrix(c(10,0,0,10),nrow=2))
+y <- c(rep(1,10),rep(2,10),rep(3,10))
+X <- rbind(X1,X2,X3)
+#
 # Oracle_beta1_beta2 <- c(2*(mu1-mu2), sum(mu1^2)-sum(mu2^2))
 # Oracle_beta1_beta3 <- c(2*(mu1-mu3), sum(mu1^2)-sum(mu3^2))
 # Oracle_beta2_beta3 <- c(2*(mu2-mu3), sum(mu2^2)-sum(mu3^2))
-# 
+#
 # plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "Oracle")
-# 
+#
 # points(X2, col='green')
-# 
+#
 # points(X3, col='blue')
-# 
+#
 # abline(a = -Oracle_beta1_beta2[3]/Oracle_beta1_beta2[2], b = -Oracle_beta1_beta2[1]/Oracle_beta1_beta2[2], lty =2, col = "red")
 # abline(a = -Oracle_beta1_beta3[3]/Oracle_beta1_beta3[2], b = -Oracle_beta1_beta3[1]/Oracle_beta1_beta3[2], lty =2, col = "red")
 # abline(a = -Oracle_beta2_beta3[3]/Oracle_beta2_beta3[2], b = -Oracle_beta2_beta3[1]/Oracle_beta2_beta3[2], lty =2)
-# 
+#
 
 
 w1 <- Variable(d)
@@ -55,7 +56,7 @@ slack3 <- Variable(rows = nrow(X3))
 
 
 C <- 1
-objective <- Minimize(sum_squares(vstack(w1,w2,w3)) +  C*(sum_entries(slack1) + sum_entries(slack2) + sum_entries(slack3)))
+objective <- Minimize(sum_squares(vstack(w1,w2,w3))/2 +  C*(sum_entries(slack1) + sum_entries(slack2) + sum_entries(slack3)))
 
 constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
                     X1 %*% (w1 - w2) + b1 - b2 >= 1-slack1,
@@ -88,11 +89,13 @@ points(X2, col='green')
 
 points(X3, col='blue')
 
-
 # abline(a = -beta1[3]/beta1[2], b = -beta1[1]/beta1[2])
 # abline(a = -beta2[3]/beta2[2], b = -beta2[1]/beta2[2])
 # abline(a = -beta3[3]/beta3[2], b = -beta3[1]/beta3[2])
+rbind(beta1,beta2,beta3)
 
+CS_pri_opt(X,y,C)
+ 
 
 CS_beta1_beta2 <- beta1 - beta2
 CS_beta1_beta3 <- beta1 - beta3

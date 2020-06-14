@@ -3,7 +3,7 @@ Duchi_dual_opt <- function(X,y,C){
   m <- length(unique(y))
   p <- ncol(X)
   Y <- sapply(unique(y), function(id){as.numeric(y==id)})
-  
+    
   alpha <- Variable(rows = n, cols = m)
   beta <- Variable(rows = n, cols = m)
   tau <- Variable(rows = n*m, cols = m)
