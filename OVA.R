@@ -2,7 +2,11 @@
 # library(MASS)
 # 
 rm(list = ls())
-set.seed(123)
+# set.seed(1211)
+
+
+setwd("~/Desktop/Multiclass Classification/MSVM Code")
+source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
 p <- 2
 m <- 3
 v <- 8
@@ -10,7 +14,7 @@ X1 <- mvrnorm(10, c(-2,3), diag(v,p))
 X2 <- mvrnorm(10, c(3,-2), diag(v,p))
 X3 <- mvrnorm(10, c(-3,-3), diag(v,p))
 y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
-
+X <- rbind(X1,X2,X3)
 w1 <- Variable(p)
 w2 <- Variable(p)
 w3 <- Variable(p)
@@ -60,6 +64,34 @@ OVA_beta3 <- c(CVXR_OVA_w3,CVXR_OVA_b3)
 
 CVXR_OVA_primary_w <- t(cbind(CVXR_OVA_w1,CVXR_OVA_w2,CVXR_OVA_w3))
 CVXR_OVA_primary_b <- c(CVXR_OVA_b1,CVXR_OVA_b2,CVXR_OVA_b3)
+
+OVA_pri_opt(X,y,C)
+cbind(CVXR_OVA_primary_w,CVXR_OVA_primary_b)
+
+
+#########################################Upgraded
+class_idx <- sort(unique(y))
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+n <- nrow(X)
+p <- ncol(X)
+w <- Variable(rows = m, cols = p)
+b <- Variable(rows = m)
+slack <- Variable(rows = n, cols = m)
+
+C <- 1
+
+objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
+
+# X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)
+
+constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (2*Y-1)) >=1- slack,
+                    slack >=0)
+
+OVA <- Problem(objective, constraints)
+
+CVXR_OVA <- solve(OVA, solver="MOSEK")
+cbind(CVXR_OVA$getValue(w),CVXR_OVA$getValue(b))
+cbind(CVXR_OVA_primary_w,CVXR_OVA_primary_b)
 
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "OVA")
 

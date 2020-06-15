@@ -1,15 +1,19 @@
 library(CVXR)
 library(MASS)
-set.seed(12453)
+# set.seed(12453)
 par(mfrow=c(2,2))
 rm(list = ls())
+
+source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
+source("~/Desktop/Multiclass Classification/MSVM Code/Dual form functions.R")
 p <- 2
 m <- 3
 v <- 1
-X1 <- mvrnorm(30, c(-2,3), diag(v,p))
-X2 <- mvrnorm(30, c(3,-2), diag(v,p))
-X3 <- mvrnorm(30, c(-3,-3), diag(v,p))
+X1 <- mvrnorm(10, c(-2,3), diag(v,p))
+X2 <- mvrnorm(10, c(3,-2), diag(v,p))
+X3 <- mvrnorm(10, c(-3,-3), diag(v,p))
 y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
+X <- rbind(X1,X2,X3)
 
 w1 <- Variable(p)
 w2 <- Variable(p)
@@ -65,6 +69,36 @@ CVXR_MSVM8_b3 <- CVXR_MSVM8$getValue(b3)
 MSVM8_primary_beta <- rbind(c(CVXR_MSVM8_w1,CVXR_MSVM8_b1),
       c(CVXR_MSVM8_w2,CVXR_MSVM8_b2),
       c(CVXR_MSVM8_w3,CVXR_MSVM8_b3))
+
+
+##############################3
+
+class_idx <- sort(unique(y))
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+n <- nrow(X)
+p <- ncol(X)
+m <- length(class_idx)
+
+w <- Variable(rows = m, cols = p)
+b <- Variable(rows = m)
+slack <- Variable(rows = n, cols = m)
+
+objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
+
+constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(1- slack),
+                    sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=1- sum_entries(slack, axis=1),
+                    slack >=0)
+
+MSVM8 <- Problem(objective, constraints)
+CVXR_MSVM8 <- solve(MSVM8, solver = "MOSEK")
+
+MSVM8_primary_beta
+cbind(CVXR_MSVM8$getValue(w),CVXR_MSVM8$getValue(b))
+MSVM8_dual_opt(X,y,C)
+MSVM8_pri_opt(X,y,C)
+
+
+
 
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "MSVM8")
 

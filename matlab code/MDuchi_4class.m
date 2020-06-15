@@ -54,53 +54,9 @@ cvx_end
 [w1.' b1; w2.' b2; w3.' b3; w4.' b4]
 
 
-%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%
 n = size(X)
 n = n(1)
-
-cvx_begin
-     variables w(m,p) b(m) slack(n,m) xi(n);
-    minimize( sum(sum_square(w))/2 + C* sum(xi))
-    subject to
-        sum(w) == 0;
-        sum(b) == 0;     
-        ([X, ones(n,1)]*[w,b]'.*Y_mat)*ones(m,m) - [X, ones(n,1)]*[w,b]' >= 1-slack;
-        slack >= 0;
-        xi >= norms_largest(slack.*(1-Y_mat),1,2)/2; 
-        xi >= norms_largest(slack.*(1-Y_mat),2,2)/3
-        xi >= norms_largest(slack.*(1-Y_mat),3,2)/4;
-cvx_end
-
-[w,b]
-
-[w1.' b1; w2.' b2; w3.' b3; w4.' b4]
-
-
-
-n = size(X)
-n = n(1)
-
-cvx_begin
-     variables w(m,p) b(m) slack(n,m) xi(n);
-    minimize( sum(sum_square(w))/2 + C* sum(xi))
-    subject to
-        sum(w) == 0;
-        sum(b) == 0;     
-        ([X, ones(n,1)]*[w,b]'.*Y_mat)*ones(m,m) - [X, ones(n,1)]*[w,b]' >= 1-slack;
-        slack >= 0;
-        xi >= norms_largest(slack.*(1-Y_mat),1,2)/2; 
-        xi >= norms_largest(slack.*(1-Y_mat),2,2)/3
-        xi >= norms_largest(slack.*(1-Y_mat),3,2)/4;
-cvx_end
-
-[w,b]
-
-[w1.' b1; w2.' b2; w3.' b3; w4.' b4]
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-size(permute(repmat(Y_mat,[1,1,m-1]),[1,3,2]))
-
 
 cvx_begin
     variables w(m,p) b(m) slack(n,m) xi(n) t(n,m-1) u(n,m-1,m);
@@ -108,15 +64,13 @@ cvx_begin
     subject to
         sum(w) == 0;
         sum(b) == 0;     
-        ([X, ones(n,1)]*[w,b]'.*Y_mat)*ones(m,m) - [X, ones(n,1)]*[w,b]' >= 1-slack;
+        ([X, ones(n,1)]*[w,b]'.*Y_mat)*ones(m,m) - [X, ones(n,1)]*[w,b]' >=  (1-Y_mat).*(1-slack);
         slack >= 0;
-        xi >= max((ones(n,1)*(1:(m-1))./(2:m)).*t  - (ones(n,1)*1./(2:m)).*sum(u,3),[],2);
+        xi >= max((ones(n,1)*(1:(m-1))./(2:m)).*t  + (ones(n,1)*1./(2:m)).*sum(u,3), [],2);
         repmat(t,[1,1,m]) + u >= permute(repmat(slack,[1,1,m-1]),[1,3,2]);
         u >= 0;
-%         xi >= norms_largest(slack,1,2)-1; 
-%         xi >= norms_largest(slack,2,2)/2-1/2;
-%         xi >= norms_largest(slack,3,2)/3-1/3;
-%         xi >= 0;
 cvx_end
 
-(1:(m-1))./(2:m)
+[w1.' b1; w2.' b2; w3.' b3; w4.' b4]
+
+[w,b]

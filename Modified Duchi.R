@@ -1,25 +1,29 @@
 library(CVXR)
 library(MASS)
+setwd("~/Desktop/Multiclass Classification/MSVM Code")
 set.seed(136)
 rm(list = ls())
+source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
+source("~/Desktop/Multiclass Classification/MSVM Code/Dual form functions.R")
 
 p <- 2
 m <- 3
+C=1
 X1 <- mvrnorm(10,c(0,5),matrix(c(5,0,0,5),nrow=2))
 X2 <- mvrnorm(10,c(5,0),matrix(c(5,0,0,5),nrow=2))
 X3 <- mvrnorm(10,c(0,0),matrix(c(5,0,0,5),nrow=2))
 X <- rbind(X1,X2,X3)
 y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
-# 
-# p <- 900
-# m <- 3
-# v <- 200
-# X1 <- mvrnorm(300, rep(1,p), diag(v,p))
-# X2 <- mvrnorm(300, rep(-1,p), diag(v,p))
-# X3 <- mvrnorm(300, c(rep(1,p/2),rep(-1,p/2)), diag(v,p))
-# y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
-# X4 <- mvrnorm(300, c(rep(-1,p/2),rep(1,p/2)), diag(v,p))
-# y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)),rep(4,nrow(X3)))
+
+
+system.time(beta <- MDuchi_pri_opt(X,y,C))
+beta
+
+system.time(beta <- MDuchi_dual_opt(X,y,C))
+beta 
+
+
+
 w1 <- Variable(p)
 w2 <- Variable(p)
 w3 <- Variable(p)
@@ -85,18 +89,22 @@ epsilon <- Variable(n)
 t <- Variable(n*(m-1))
 u <- Variable(rows = n*(m-1), cols = m)
 
-dim(t%*%matrix(1,nrow=1,ncol=m-1))
+dim((diag(1,n)%x%matrix(1,nrow=m-1)))
 
 objective <- Minimize(sum_squares(w)/2 +  C*sum(epsilon))
 constraints <- list( sum_entries(b) == 0,
                      sum_entries(w, axis = 2) ==0,
                      ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= (1-Y)*(1-slack),
-                     # vec(t(epsilon%*%matrix(1,ncol=m))) >= t - rep(1/seq(1,m),n)*sum_entries(u,axis=1) - rep(1/seq(1,m),n),
-                     (diag(1,n)%x%matrix(1,nrow=m-1))%*%epsilon >=  rep(seq(1,m-1),n)/rep(seq(2,m),n)*t - 1/rep(seq(2,m),n)*sum_entries(u,axis=1),
-                     t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n)%x%matrix(1,nrow=m-1))%*%slack,
+                      vec(t(epsilon%*%matrix(1,ncol=m-1))) >=  rep(seq(1,m-1),n)/rep(seq(2,m),n)*t + 1/rep(seq(2,m),n)*sum_entries(u,axis=1),
+                     t%*%matrix(1,nrow=1,ncol=m) + u >=  (diag(1,n)%x%matrix(1,nrow=m-1))%*%slack,
                      u>=0,
                      slack >=0)
 
+
+M_Duchi <- Problem(objective, constraints)
+CVXR_M_Duchi <- solve(M_Duchi, solver = "MOSEK")
+CVXR_M_Duchi_primary_beta
+cbind(CVXR_M_Duchi$getValue(w), CVXR_M_Duchi$getValue(b))
 
 ########plot##############################
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "Modified Duchi")
@@ -135,80 +143,11 @@ class_idx <- sort(unique(y))
 Y <- sapply(class_idx, function(id){as.numeric(y==id)})
 
 writeMat(con="MDuchi-4class.mat", X1 = X1, X2 = X2, X3 = X3, X4 = X4, X=X, Y_mat =Y, p=p, m=m, C = C)
+system.time(beta <- MDuchi_pri_opt(X,y,C))
+beta
 
-w1 <- Variable(p)
-w2 <- Variable(p)
-w3 <- Variable(p)
-w4 <- Variable(p)
-
-b1 <- Variable(1)
-b2 <- Variable(1)
-b3 <- Variable(1)
-b4 <- Variable(1)
-
-
-slack1 <- Variable(rows = nrow(X1), cols = 3)
-slack2 <- Variable(rows = nrow(X2), cols = 3)
-slack3 <- Variable(rows = nrow(X3), cols = 3)
-slack4 <- Variable(rows = nrow(X4), cols = 3)
-
-xi1 <- Variable(rows = nrow(X1))
-xi2 <- Variable(rows = nrow(X2))
-xi3 <- Variable(rows = nrow(X3))
-xi4 <- Variable(rows = nrow(X4))
-
-C <- 1
-objective <- Minimize(sum_squares(vstack(w1,w2,w3,w4))/2 +  C*(sum(xi1)+sum(xi2)+sum(xi3)+ sum(xi4)) )
-constraints <- list(w1+w2+w3 + w4 == 0, b1+b2+b3 +b4==0,
-                    X1 %*% (w1 - w2) + b1 - b2 >= 1-slack1[,1],
-                    X1 %*% (w1 - w3) + b1 - b3 >= 1-slack1[,2],
-                    X1 %*% (w1 - w4) + b1 - b4 >= 1-slack1[,3],
-                    X2 %*% (w2 - w1) + b2 - b1 >= 1-slack2[,1],
-                    X2 %*% (w2 - w3) + b2 - b3 >= 1-slack2[,2],
-                    X2 %*% (w2 - w4) + b2 - b4 >= 1-slack2[,3],
-                    X3 %*% (w3 - w1) + b3 - b1 >= 1-slack3[,1],
-                    X3 %*% (w3 - w2) + b3 - b2 >= 1-slack3[,2],
-                    X3 %*% (w3 - w4) + b3 - b4 >= 1-slack3[,3],
-                    X4 %*% (w4 - w1) + b4 - b1 >= 1-slack4[,1],
-                    X4 %*% (w4 - w2) + b4 - b2 >= 1-slack4[,2],
-                    X4 %*% (w4 - w3) + b4 - b3 >= 1-slack4[,3],
-                    xi1 >= max_entries(slack1, axis = 1)/2,
-                    xi2 >= max_entries(slack2, axis = 1)/2,
-                    xi3 >= max_entries(slack3, axis = 1)/2,
-                    xi4 >= max_entries(slack4, axis = 1)/2,
-                    xi1 >= (sum_entries(slack1, axis = 1)-min_entries(slack1, axis = 1))/3,
-                    xi2 >= (sum_entries(slack2, axis = 1)-min_entries(slack2, axis = 1))/3,
-                    xi3 >= (sum_entries(slack3, axis = 1)-min_entries(slack3, axis = 1))/3,
-                    xi4 >= (sum_entries(slack4, axis = 1)-min_entries(slack4, axis = 1))/3,
-                    xi1 >= sum_entries(slack1, axis = 1)/4,
-                    xi2 >= sum_entries(slack2, axis = 1)/4,
-                    xi3 >= sum_entries(slack3, axis = 1)/4,
-                    xi4 >= sum_entries(slack4, axis = 1)/4,
-                    slack1 >=0,
-                    slack2 >=0,
-                    slack3 >=0,
-                    slack4 >=0)
-
-M_Duchi <- Problem(objective, constraints)
-M_Duchi_primary_time <- system.time(CVXR_M_Duchi <- solve(M_Duchi, solver = "MOSEK"))
-
-
-CVXR_M_Duchi_w1 <- CVXR_M_Duchi$getValue(w1)
-CVXR_M_Duchi_b1 <- CVXR_M_Duchi$getValue(b1)
-CVXR_M_Duchi_w2 <- CVXR_M_Duchi$getValue(w2)
-CVXR_M_Duchi_b2 <- CVXR_M_Duchi$getValue(b2)
-CVXR_M_Duchi_w3 <- CVXR_M_Duchi$getValue(w3)
-CVXR_M_Duchi_b3 <- CVXR_M_Duchi$getValue(b3)
-CVXR_M_Duchi_w4 <- CVXR_M_Duchi$getValue(w4)
-CVXR_M_Duchi_b4 <- CVXR_M_Duchi$getValue(b4)
-
-beta1 <- c(CVXR_M_Duchi_w1,CVXR_M_Duchi_b1)
-beta2 <- c(CVXR_M_Duchi_w2,CVXR_M_Duchi_b2)
-beta3 <- c(CVXR_M_Duchi_w3,CVXR_M_Duchi_b3)
-beta4 <- c(CVXR_M_Duchi_w4,CVXR_M_Duchi_b4)
-
-CVXR_M_Duchi_primary_beta <- rbind(beta1,beta2,beta3,beta4)
-
+system.time(beta <- MDuchi_dual_opt(X,y,C))
+beta 
 
 ##################
 # ##################### 5 class########################
@@ -225,8 +164,14 @@ p <- 2
 C <- 1
 writeMat(con="MDuchi-5class.mat", X1 = X1, X2 = X2, X3 = X3, X4 = X4, X5 = X5, p=p, m=m, C = C)
 
+C=1
+system.time(beta <- MDuchi_pri_opt(X,y,C))
+beta
 
-#########################################################################
+system.time(beta <- MDuchi_dual_opt(X,y,C))
+beta 
+
+########################Dual Problem################################################
 
 # X <- rbind(X1,X2,X3,X4)
 n <- nrow(X)

@@ -23,10 +23,10 @@ m <- 3
 
 ############################################
 ### Plan I Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
-# sep_list <- c(.36, .45, .55, .65, .76, .88, 1.01, 1.17,  1.37, 1.66, 2.30)
+sep_list <- c(.36, .45, .55, .65, .76, .88, 1.01, 1.17,  1.37, 1.66, 2.30)
   
 #### Plan II Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
-sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95,3.9)
+# sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95,3.9)
 
 #### Plan III Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
 # sep_list <- c(.26, .44, .62, .80, 1, 1.2, 1.45, 1.72, 2.1, 2.6, 3.7)
@@ -35,18 +35,14 @@ sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95,3.9)
 # sep_list <- c(.63, .73, .83, .93, 1.04, 1.17, 1.31, 1.47, 1.68, 2.01, 3.51)
 
 # sep_list <- c(.93, 1.13)
-n_list <- c(4, 6, 8)
+n_list <- c(10, 15, 20)
 # n_list <- c(4,6)
 
 C_list <- 2^seq(4,-4)
 
-# C_list <- 2^seq(-4,4)
-# C_list
-rep_n <- 10
+rep_n <- 20
 
 
-# 
-# i <- j <- 1
 res.array <- array(0, dim = c(length(sep_list), length(n_list), 8, rep_n))
 
 cl <- makeCluster(10)
@@ -58,13 +54,13 @@ for(i in 1:length(sep_list)){
   
   for( j in 1:length(n_list)){
     clusterExport(cl=cl, varlist=c("WW_pri_opt", "Duchi_pri_opt","MDuchi_pri_opt", "CS_pri_opt",
-                                   "LLW_pri_opt", "OVA_pri_opt", "MSVM8_pri_opt","MSVM7_pri_opt","Duchi_dual_opt","ginv",
+                                   "LLW_pri_opt", "OVA_pri_opt", "MSVM8_pri_opt","MSVM7_pri_opt","ginv",
                                    "solve", "Minimize", "sum_squares", "sum_entries", "vstack", "reshape_expr",
                                    "Variable","Problem","max_entries","min_entries","pred","data_generate","mvrnorm","Maximize","vec"), envir=environment())
     acc.res <- parSapply(cl, 1:rep_n, function(s, C_list, oracle_data, n, sep){
       # n = n_list[j]; sep = sep_list[i];
       train_data <- data_generate(n, sep = sep)
-      test_data <- data_generate(500, sep = sep)
+      test_data <- data_generate(n, sep = sep)
       WW_acc <- tryCatch({
         opt_idx <- which.max(sapply(C_list, function(C){
           WW_w <- WW_pri_opt(train_data$X,train_data$y,C)
@@ -90,10 +86,10 @@ for(i in 1:length(sep_list)){
 
       Duchi_acc <- tryCatch({
         opt_idx <- which.max(sapply(C_list, function(C){
-          Duchi_w <- Duchi_dual_opt(train_data$X,train_data$y,C)
+          Duchi_w <- Duchi_pri_opt(train_data$X,train_data$y,C)
           mean(pred(test_data$X,Duchi_w) == test_data$y)
         }))
-        Duchi_w <- Duchi_dual_opt(train_data$X,train_data$y,C_list[opt_idx])
+        Duchi_w <- Duchi_pri_opt(train_data$X,train_data$y,C_list[opt_idx])
         mean(pred(oracle_data$X,Duchi_w) == oracle_data$y)
       }, error = function(e) {
         return(NA)
@@ -167,7 +163,7 @@ for(i in 1:length(sep_list)){
 }
 stopCluster(cl)
 
-res.array
+# res.array
 
 
 summary.res.arry <- apply(res.array, c(1,2,3), function(x){mean(x,na.rm = T)})
@@ -178,5 +174,5 @@ summary.res.arry[,1,]
 summary.res.arry[,2,]
 summary.res.arry[,3,]
 
-save(sep_list, rep_n, n_list, res.array, summary.res.arry, file = paste("~/Desktop/Multiclass Classification/MSVM Code/MSVM simulation (Plan II, val = 500), sep=",length(sep_list),", n_list=",length(n_list),", rep=",rep_n,".Rdata",sep=""))
+save(sep_list, rep_n, n_list, res.array, summary.res.arry, file = paste("~/Desktop/Multiclass Classification/MSVM Code/MSVM simulation (Plan I, val same), sep=",length(sep_list),", n_list=",length(n_list),", rep=",rep_n,".Rdata",sep=""))
 

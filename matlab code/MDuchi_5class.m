@@ -1,5 +1,5 @@
 clear
-load MDuchi-5class.mat;
+load ../MDuchi-5class.mat;
 
 n1 = size(X1);
 n1 = n1(1);

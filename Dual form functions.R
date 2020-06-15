@@ -60,11 +60,15 @@ Duchi_dual_opt <- function(X,y,C){
         }
       }
     }
-      b <- ginv(b_system_mat)%*%b_system_v
+    if(sum(svd(b_system_mat)$d>0)==m){
+       b <- ginv(b_system_mat)%*%b_system_v
+    }else{
+      print("intercept is not identifiable through KKT")
+      b <- Duchi_pri_opt(X,y,C,intercept_only = T, w)
+    }
       return(cbind(w,b))
   } 
   return(solve_w_and_b(X,Y,alpha_sol, tau_sol))
-
 }
 
 
@@ -135,7 +139,12 @@ MDuchi_dual_opt <- function(X,y,C){
       }
     }
     
-    b <- ginv(b_system_mat)%*%b_system_v
+    if(sum(svd(b_system_mat)$d>0)==m){
+      b <- ginv(b_system_mat)%*%b_system_v
+    }else{
+      print("intercept is not identifiable through KKT")
+      b <- MDuchi_pri_opt(X,y,C,intercept_only = T, w)
+    }
     return(cbind(w,b))
   }
   
@@ -215,5 +224,45 @@ WW_dual_opt <- function(X,y,C){
 
 
 
-
-
+MSVM8_dual_opt <- function(X,y,C){
+  n <- nrow(X)
+  m <- length(unique(y))
+  p <- ncol(X)
+  Y <- sapply(unique(y), function(id){as.numeric(y==id)})
+  
+  Delta <- matrix(1, nrow  = n, ncol = m) - 2*Y
+  alpha <- Variable(rows = n, cols = m)
+  
+  objective <- Maximize(-1/2*sum_entries((t(alpha*Delta)%*%X)^2) +  sum_entries(alpha))
+  
+  constraints <- list(sum_entries(alpha*Delta, axis = 2) ==0,
+                      alpha>=0, 
+                      (alpha*(1-Y) + (alpha*Y)%*%matrix(1,nrow=3,ncol=3))<=C) 
+  
+  
+  MSVM8_dual <- Problem(objective, constraints)
+  CVXR_MSVM8_dual <- solve(MSVM8_dual, solver = "MOSEK")
+  
+  alpha_sol <- CVXR_MSVM8_dual$getValue(alpha)
+  solve_w_and_b <- function(X, Y, alpha_sol, C, zero_tol =4){
+    w <- -t(alpha_sol*Delta)%*%X
+    lpred <- X%*%t(w)
+    alpha_sol <- round(alpha_sol,zero_tol)
+    balpha <- (alpha_sol*(1-Y) + (alpha_sol*Y)%*%matrix(1,nrow=3,ncol=3))
+    KKT1 <- (0 <= alpha_sol*(1-Y) & 0 <  balpha*(1-Y) &   balpha*(1-Y) < C)
+    KKT2 <- (0 <= alpha_sol*Y & alpha_sol*Y <= C & matrix(rep(apply(balpha*(1-Y), MARGIN = 1, FUN = function(x){max(x) <= C}),m), nrow=n,ncol=m))
+    
+     b <- sapply(unique(y), function(id){ 
+       bb <- NULL
+       if(sum(KKT1[,id]) > 0){
+          bb <- -1 - max(lpred[KKT1[,id],id])
+        }
+        if(is.null(bb) & sum(KKT2[,id]) > 0){
+          bb <- 1 - min(lpred[KKT2[,id],id])
+        }
+        return(bb)
+      })
+    return(cbind(w,b))
+  }
+  return(solve_w_and_b(X,Y,alpha_sol, C))
+}

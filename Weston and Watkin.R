@@ -197,7 +197,7 @@ CVXR_WW_primary_beta
 writeMat(con="WW-4class.mat", X =X, Y = y, Y_mat = Y, p=p, m=m, C = C)
 
 
-
+LLW_pri_opt(X,y,C)
 ###########Verifying the objectives ##################################
 # alpha_sol
 # 
