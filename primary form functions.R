@@ -246,87 +246,79 @@ MSVM8_pri_opt <- function(X,y,C){
 
 New1_pri_opt <- function(X,y,C){
   
-  X1 <- X[y==1,,drop=F]
-  X2 <- X[y==2,,drop=F]
-  X3 <- X[y==3,,drop=F]
-  p <- ncol(X)
-  w1 <- Variable(p)
-  w2 <- Variable(p)
-  b1 <- Variable(1)
-  b2 <- Variable(1)
   
-  slack1 <- Variable(rows = nrow(X1), cols = 2)
-  slack2 <- Variable(rows = nrow(X2), cols = 2)
-  slack3 <- Variable(rows = nrow(X3), cols = 2)
-  xi1 <- Variable(rows = nrow(X1))
-  xi2 <- Variable(rows = nrow(X2))
   
-  objective <- Minimize(sum_squares(vstack(w1,w2))/2 +  C*(sum(xi1)+sum(xi2)+sum_entries(slack3)))
-  constraints <- list(X1 %*% w1 + b1 >= 1-xi1,
-                      slack1[,1] == 1,
-                      X1 %*% (w1 - w2) + b1 - b2 >= 1-slack1[,2],
-                      X2 %*% w2 + b2 >= 1-xi2,
-                      slack2[,2] == 1,
-                      X2 %*% (w2 - w1) + b2 - b1 >= 1-slack2[,1],
-                      X3 %*% w1 + b1 <= -1 + slack3[,1],
-                      X3 %*% w2 + b2 <= -1 + slack3[,2],
-                      xi1 >= max_entries(slack1, axis = 1)-1,
-                      xi2 >= max_entries(slack2, axis = 1)-1,
-                      xi1 >= sum_entries(slack1, axis = 1)/2 - 1/2,
-                      xi2 >= sum_entries(slack2, axis = 1)/2 - 1/2,
-                      slack1 >=0,
-                      slack2 >=0,
-                      slack3 >=0)
+  class_idx <- sort(unique(y))
+  m = length(class_idx)
+  X_p1 <- X[y!=class_idx[m],,drop = F]
+  X_p2 <- X[y==class_idx[m],,drop = F]
+  n_p1 <- nrow(X_p1)
+  n_p2 <- nrow(X_p2)
+  Y_p1 <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y[1:n_p1]==id)})
+  
+  w <- Variable(rows = m-1, cols = p)
+  b <- Variable(m-1)
+  
+  slack_p1 <- Variable(rows = n_p1, cols = m-1)
+  slack_p2 <- Variable(rows = n_p2, cols = m-1)
+  epsilon_p1 <- Variable(n_p1)
+  t <- Variable(n_p1*(m-1))
+  u <- Variable(rows = n_p1*(m-1), cols = m-1)
+  
+  objective <- Minimize(sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  constraints <- list(((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= 1-slack_p1,
+                      vec(t(epsilon_p1%*%matrix(1,ncol=m-1))) >= t + sum_entries(rep(1/seq(1,m-1),n_p1)%*%matrix(1,ncol = m-1)*u,axis=1) - rep(1/seq(1,m-1),n_p1),
+                      t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-1))%*%slack_p1,
+                      u>=0,
+                      sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1-epsilon_p1,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= -1 + slack_p2,
+                      slack_p1 >=0,
+                      slack_p2 >=0)
+  
   New1 <- Problem(objective, constraints)
   CVXR_New1 <- solve(New1, solver = "MOSEK")
-  
-  beta1 <- c(CVXR_New1$getValue(w1),CVXR_New1$getValue(b1))
-  beta2 <- c(CVXR_New1$getValue(w2),CVXR_New1$getValue(b2))
-  New1_primary_beta <- rbind(beta1,beta2)
-  
-  return(New1_primary_beta)
+    
+  return(cbind(CVXR_New1$getValue(w),CVXR_New1$getValue(b)))
 }
 
 
 New3_pri_opt <- function(X,y,C){
   
-  X1 <- X[y==1,,drop=F]
-  X2 <- X[y==2,,drop=F]
-  X3 <- X[y==3,,drop=F]
-  p <- ncol(X)
-  w1 <- Variable(p)
-  w2 <- Variable(p)
-  b1 <- Variable(1)
-  b2 <- Variable(1)
   
-  slack1 <- Variable(rows = nrow(X1), cols = 2)
-  slack2 <- Variable(rows = nrow(X2), cols = 2)
-  slack3 <- Variable(rows = nrow(X3), cols = 2)
-  xi1 <- Variable(rows = nrow(X1))
-  xi2 <- Variable(rows = nrow(X2))
+  class_idx <- sort(unique(y))
+  m = length(class_idx)
+  X_p1 <- X[y!=class_idx[m],,drop = F]
+  X_p2 <- X[y==class_idx[m],,drop = F]
+  n_p1 <- nrow(X_p1)
+  n_p2 <- nrow(X_p2)
+  Y_p1 <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y[1:n_p1]==id)})
   
-  objective <- Minimize(sum_squares(vstack(w1,w2))/2 +  C*(sum(xi1)+sum(xi2)+sum_entries(slack3)))
-  constraints <- list(
-    X1 %*% (w1 - w2) + b1 - b2 >= 1-slack1[,2],
-    X1 %*% w1 + b1 >= 1 - xi1,
-    X2 %*% (w2 - w1) + b2 - b1 >= 1-slack2[,1],
-    X2 %*% w2 + b2 >= 1 - xi2,
-    X3 %*% w1 + b1 <= -1 + slack3[,1],
-    X3 %*% w2 + b2 <= -1 + slack3[,2],
-    xi1 >= max_entries(slack1, axis = 1)/2,
-    xi2 >= max_entries(slack2, axis = 1)/2,
-    slack1 >=0,
-    slack2 >=0,
-    slack3 >=0)
+  w <- Variable(rows = m-1, cols = p)
+  b <- Variable(m-1)
+  
+  
+  slack_p1 <- Variable(rows = n_p1, cols = m-1)
+  slack_p2 <- Variable(rows = n_p2, cols = m-1)
+  epsilon_p1 <- Variable(n_p1)
+  t <- Variable(n_p1*(m-2))
+  u <- Variable(rows = n_p1*(m-2), cols = m-1)
+  
+  
+  objective <- Minimize(sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  constraints <- list(((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= (1-Y_p1)*(1-slack_p1),
+                      vec(t(epsilon_p1%*%matrix(1,ncol=m-2))) >=  rep(seq(1,m-2),n_p1)/rep(seq(2,m-1),n_p1)*t + 1/rep(seq(2,m-1),n_p1)*sum_entries(u,axis=1),
+                      t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-2))%*%slack_p1,
+                      u>=0,
+                      sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1-epsilon_p1,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= -1 + slack_p2,
+                      slack_p1 >=0,
+                      slack_p2 >=0)
+  
   
   New3 <- Problem(objective, constraints)
   CVXR_New3 <- solve(New3, solver = "MOSEK")
   
-  beta1 <- c(CVXR_New3$getValue(w1),CVXR_New3$getValue(b1))
-  beta2 <- c(CVXR_New3$getValue(w2),CVXR_New3$getValue(b2))
-  New3_primary_beta <- rbind(beta1,beta2)
-  
-  return(New3_primary_beta)
+  return(cbind(CVXR_New3$getValue(w),CVXR_New3$getValue(b)))
 }
 
 
@@ -351,7 +343,7 @@ data_generate <- function(n, sep =  1,  v = 1.5^2){
   X1 <- matrix(mvrnorm(n1, sep*c(0,2), diag(v,nrow=2)), nrow=n1)
   X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1), diag(v,nrow=2)), nrow=n2)
   X3 <- matrix(mvrnorm(n3, sep*c(-sqrt(3),-1), diag(v,nrow=2)), nrow=n3)
-  ########  Plan II     #############
+  # ########  Plan II     #############
   # X1 <- matrix(mvrnorm(n1, sep*c(-sqrt(3),-1),  matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2)), nrow=n1)
   # X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2)), nrow=n2)
   # X3 <- matrix(mvrnorm(n3, sep*c(0,2), diag(c(8,1),nrow=2)), nrow=n3)

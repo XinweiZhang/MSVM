@@ -22,11 +22,11 @@ m <- 3
 # points(oracle_data$X[201:300,], col='blue')
 
 ############################################
-### Plan I Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
-# sep_list <- c(.36, .45, .55, .65, .76, .88, 1.01, 1.17,  1.37, 1.66, 2.30)
+## Plan I Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
+sep_list <- c(.36, .45, .55, .65, .76, .88, 1.01, 1.17,  1.37, 1.66, 2.30)
 
 #### Plan II Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
-sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95, 3.9)
+# sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95, 3.9)
 # sep_list <- c(.59, .68)
 #### Plan III Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
 # sep_list <- c(.26, .44, .62, .80, 1, 1.2, 1.45, 1.72, 2.1, 2.6, 3.7)
@@ -46,7 +46,7 @@ rep_n <- 40
 res.array <- array(0, dim = c(length(sep_list), length(n_list), 10, rep_n))
 # i <- j <- 1
 
-cl <- makeCluster(14)
+cl <- makeCluster(10)
 for(i in 1:length(sep_list)){
   oracle_data <- data_generate(10000, sep = sep_list[i])
   oracle <- multinom(oracle_data$y ~ oracle_data$X, trace = F)
@@ -197,5 +197,7 @@ round(summary.res.arry[,2,]*100,2)
 
 round(summary.res.arry[,3,]*100,2)
 
-save(sep_list, rep_n, n_list, res.array, summary.res.arry, file = paste("~/Desktop/Multiclass Classification/MSVM Code/simulation results/MSVM(3 class, Plan II, val same), sep=",length(sep_list),", n_list=",length(n_list),", rep=",rep_n,".Rdata",sep=""))
+save(sep_list, rep_n, n_list, res.array, summary.res.arry, file = 
+       paste("~/Desktop/Multiclass Classification/MSVM Code/simulation results/MSVM(3 class, Plan I, val same), sep=",
+             length(sep_list),", n_list=",length(n_list),", rep=",rep_n,".Rdata",sep=""))
 
