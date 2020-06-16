@@ -1,6 +1,6 @@
 addpath('~/Documents/MSVMpack1.5/matlab/')
 clear
-load ../WW-4class.mat;
+load WW-4class.mat;
 
 model = trainmsvm(X,Y, "-m WW -k 1 -c 1 -q -u");
 
@@ -21,7 +21,6 @@ model = trainmsvm(X,Y, "-m LLW -k 1 -c 1 -q -u");
 
 model = loadmsvm( 'noname')
 
-model.alpha
 alpha = model.alpha.*(1-Y_mat);
 [alpha'*X, model.b]
 

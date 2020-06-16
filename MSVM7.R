@@ -50,6 +50,7 @@ CVXR_MSVM7_b2 <- CVXR_MSVM7$getValue(b2)
 
 MSVM7_beta1 <- c(CVXR_MSVM7_w1,CVXR_MSVM7_b1)
 MSVM7_beta2 <- c(CVXR_MSVM7_w2,CVXR_MSVM7_b2)
+
 MSVM7_primary_beta <- rbind(MSVM7_beta1,MSVM7_beta2)
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10))
 
@@ -57,14 +58,14 @@ points(X2, col='green')
 
 points(X3, col='blue')
 
-abline(a = -MSVM7_beta1[3]/beta1[2], b = -MSVM7_beta1[1]/beta1[2])
-abline(a = -MSVM7_beta2[3]/beta2[2], b = -MSVM7_beta2[1]/beta2[2])
+abline(a = -MSVM7_beta1[3]/MSVM7_beta1[2], b = -MSVM7_beta1[1]/MSVM7_beta1[2])
+abline(a = -MSVM7_beta2[3]/MSVM7_beta2[2], b = -MSVM7_beta2[1]/MSVM7_beta2[2])
 
-# plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10))
-# 
-# points(X2, col='green')
-# 
-# points(X3, col='blue')
+plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10))
+
+points(X2, col='green')
+
+points(X3, col='blue')
 # 
 # MSVM7_beta1_beta2 <- MSVM7_beta1 - MSVM7_beta2
 # MSVM7_beta1_beta3 <- MSVM7_beta1 - MSVM7_beta3

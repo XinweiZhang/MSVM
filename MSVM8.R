@@ -94,6 +94,8 @@ CVXR_MSVM8 <- solve(MSVM8, solver = "MOSEK")
 
 MSVM8_primary_beta
 cbind(CVXR_MSVM8$getValue(w),CVXR_MSVM8$getValue(b))
+
+
 MSVM8_dual_opt(X,y,C)
 MSVM8_pri_opt(X,y,C)
 

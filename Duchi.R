@@ -9,9 +9,9 @@ source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
 source("~/Desktop/Multiclass Classification/MSVM Code/Dual form functions.R")
 p <- 2
 m <- 3
-X1 <- mvrnorm(4,c(0,5),matrix(c(5,0,0,5),nrow=2))
-X2 <- mvrnorm(4,c(5,0),matrix(c(5,0,0,5),nrow=2))
-X3 <- mvrnorm(4,c(0,0),matrix(c(5,0,0,5),nrow=2))
+X1 <- mvrnorm(20,c(0,5),matrix(c(5,0,0,5),nrow=2))
+X2 <- mvrnorm(20,c(5,0),matrix(c(5,0,0,5),nrow=2))
+X3 <- mvrnorm(20,c(0,0),matrix(c(5,0,0,5),nrow=2))
 X <- rbind(X1,X2,X3)
 y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
 C <- 1
@@ -19,12 +19,6 @@ n <- nrow(X)
 class_idx <- sort(unique(y))
 Y <- sapply(class_idx, function(id){as.numeric(y==id)})
 writeMat(con="Duchi-3class.mat", X1 = X1, X2 = X2, X3 = X3, X=X, Y_mat = Y, p=p, m=m, C = C)
-
-system.time(beta <- Duchi_pri_opt(X,y,C))
-beta
-
-system.time(beta <- Duchi_dual_opt(X,y,C))
-beta 
 
 ############################################# 
 w1 <- Variable(p)
@@ -114,9 +108,11 @@ constraints <- list( sum_entries(b) == 0,
                      slack >=0)
 
 Duchi <- Problem(objective, constraints)
-CVXR_Duchi <- solve(Duchi, solver = "MOSEK")
+system.time(CVXR_Duchi <- solve(Duchi, solver = "MOSEK"))
 
 Duchi_primary_beta
+
+
 
 cbind(CVXR_Duchi$getValue(w), CVXR_Duchi$getValue(b))
 
@@ -128,7 +124,7 @@ points(X2, col='green')
 
 points(X3, col='blue')
 
-
+# 
 # abline(a = -beta1[3]/beta1[2], b = -beta1[1]/beta1[2])
 # abline(a = -beta2[3]/beta2[2], b = -beta2[1]/beta2[2])
 # abline(a = -beta3[3]/beta3[2], b = -beta3[1]/beta3[2])

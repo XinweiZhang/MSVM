@@ -194,13 +194,8 @@ constraints <- list(sum_entries(Y*(sum_entries(alpha, axis = 1)%*%matrix(1,nrow=
                     vec(beta*sapply(1:(m-1), function(j){rep(1/(j+1),n)}))%*%matrix(1,nrow=1,ncol=m) - tau >=0, 
                     beta*sapply(1:(m-1), function(j){rep(j/(j+1),n)}) - reshape_expr(sum_entries(do.call(rbind,lapply(1:(m-1),
                                                  function(x){1-Y}))*tau, axis =1), c(n,m-1))==0,
-                    # sum_entries(reshape_expr(tau, c(n, (m-1)*m))[,1:3], axis=1) - alpha[,1] >=0,
-                    # sum_entries(reshape_expr(tau, c(n, (m-1)*m))[,4:6], axis=1) - alpha[,2] >=0,
-                    # sum_entries(reshape_expr(tau, c(n, (m-1)*m))[,7:9], axis=1) - alpha[,3] >=0,
-                    # sum_entries(reshape_expr(tau, c(n, (m-1)*m))[,10:12], axis=1) - alpha[,4] >=0,
                     sum_entries(do.call(rbind,lapply(1:(m-1), function(x){Y}))*tau, axis =1) == 0,
                     alpha>=0,
-                    # alpha*Y==0,
                     beta>=0,
                     tau>=0) 
 constraints <- c(constraints,lapply(0:(m-1), function(id){sum_entries(reshape_expr(tau, c(n, (m-1)*m))[,(id*(m-1)+1):((id+1)*(m-1))], axis=1) - alpha[,id+1] >=0}))
@@ -256,4 +251,4 @@ solve_w_and_b <- function(X, Y, alpha_sol, tau_sol){
 }
 
 solve_w_and_b(X,Y,alpha_sol, tau_sol)
-# CVXR_M_Duchi_primary_beta
+  # CVXR_M_Duchi_primary_beta
