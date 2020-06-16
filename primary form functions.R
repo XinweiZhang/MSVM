@@ -246,8 +246,6 @@ MSVM8_pri_opt <- function(X,y,C){
 
 New1_pri_opt <- function(X,y,C){
   
-  
-  
   class_idx <- sort(unique(y))
   m = length(class_idx)
   X_p1 <- X[y!=class_idx[m],,drop = F]
@@ -255,7 +253,7 @@ New1_pri_opt <- function(X,y,C){
   n_p1 <- nrow(X_p1)
   n_p2 <- nrow(X_p2)
   Y_p1 <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y[1:n_p1]==id)})
-  
+  p <- ncol(X)
   w <- Variable(rows = m-1, cols = p)
   b <- Variable(m-1)
   
@@ -284,7 +282,6 @@ New1_pri_opt <- function(X,y,C){
 
 New3_pri_opt <- function(X,y,C){
   
-  
   class_idx <- sort(unique(y))
   m = length(class_idx)
   X_p1 <- X[y!=class_idx[m],,drop = F]
@@ -292,7 +289,7 @@ New3_pri_opt <- function(X,y,C){
   n_p1 <- nrow(X_p1)
   n_p2 <- nrow(X_p2)
   Y_p1 <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y[1:n_p1]==id)})
-  
+  p <- ncol(X)
   w <- Variable(rows = m-1, cols = p)
   b <- Variable(m-1)
   
@@ -336,17 +333,18 @@ pred <- function(X_test,w, rule = "simple_max"){
 }
 
 data_generate <- function(n, sep =  1,  v = 1.5^2){
-  y <- sort(sample(c(1,2,3), size = n-6, replace = T, prob =  1/rep(3,3)))
+  y <- sort(sample(c(1,2,3), size = n-3, replace = T, prob =  1/rep(3,3)))
   n1 <- sum(y==1)+1
   n2 <- sum(y==2)+1
   n3 <- sum(y==3)+1
-  X1 <- matrix(mvrnorm(n1, sep*c(0,2), diag(v,nrow=2)), nrow=n1)
-  X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1), diag(v,nrow=2)), nrow=n2)
-  X3 <- matrix(mvrnorm(n3, sep*c(-sqrt(3),-1), diag(v,nrow=2)), nrow=n3)
+  
+  # X1 <- matrix(mvrnorm(n1, sep*c(0,2), diag(v,nrow=2)), nrow=n1)
+  # X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1), diag(v,nrow=2)), nrow=n2)
+  # X3 <- matrix(mvrnorm(n3, sep*c(-sqrt(3),-1), diag(v,nrow=2)), nrow=n3)
   # ########  Plan II     #############
-  # X1 <- matrix(mvrnorm(n1, sep*c(-sqrt(3),-1),  matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2)), nrow=n1)
-  # X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2)), nrow=n2)
-  # X3 <- matrix(mvrnorm(n3, sep*c(0,2), diag(c(8,1),nrow=2)), nrow=n3)
+  X1 <- matrix(mvrnorm(n1, sep*c(-sqrt(3),-1),  matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2)), nrow=n1)
+  X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2)), nrow=n2)
+  X3 <- matrix(mvrnorm(n3, sep*c(0,2), diag(c(8,1),nrow=2)), nrow=n3)
 
   ########  Plan III     #############
   # X1 <- mvrnorm(n1, sep*c(0,2), diag(c(1,8),nrow=2))
@@ -365,5 +363,32 @@ data_generate <- function(n, sep =  1,  v = 1.5^2){
   return(list(X = X,y = y))
 }
 
-
-
+plot_decision_boundary <- function(X, y, beta, title = NULL, np_reslution = 500, xlim =NULL, ylim = NULL){
+  X_dat <- as.data.frame(X)
+  if(is.null(xlim)){
+    xlim = c( floor(min(X_dat$V1))-1, ceiling(max(X_dat$V1))+1)
+  }
+  if(is.null(ylim)){
+    ylim = c( floor(min(X_dat$V2))-1, ceiling(max(X_dat$V2))+1)
+  }
+  
+  nd.x = seq(from = xlim[1], to =  xlim[2], length.out = np_reslution)
+  nd.y = seq(from = ylim[1], to =  ylim[2], length.out = np_reslution)
+  nd = expand.grid(Var1 = nd.x, Var2 = nd.y)
+  if(nrow(beta) == length(unique(y))){
+    prd = apply(as.matrix(cbind(nd,1))%*%t(beta), MARGIN = 1, FUN = which.max)
+  }else{
+    prd_p = as.matrix(cbind(nd,1))%*%t(beta)
+    prd_p =  cbind(prd_p, 1 - apply(as.matrix(cbind(prd_p[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(prd_p[,2]+1,0)), MARGIN = 1, FUN = max))
+    prd = apply(prd_p, MARGIN = 1, FUN = which.max)
+  }
+ 
+  op <-  par(mfrow = c(1,1), mar=c(5.1, 4.1, 4.1, 7), xpd=TRUE)
+  plot(X_dat$V1, X_dat$V2, col = as.factor(y), ylim=ylim, xlim=xlim, xlab ="X", ylab = "Y", main = title)
+  
+  contour(x = nd.x, y = nd.y, z = matrix(prd, nrow = np_reslution, ncol = np_reslution), 
+          levels = unique(y), add = TRUE, drawlabels = FALSE)
+  
+  legend("topright", inset=c(-0.3,0),legend = sapply(unique(y), function(x){paste("Class ",x)}), col= unique(y), pch = 1)
+  par(op)
+}

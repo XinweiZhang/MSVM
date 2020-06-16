@@ -20,6 +20,8 @@ class_idx <- sort(unique(y))
 Y <- sapply(class_idx, function(id){as.numeric(y==id)})
 writeMat(con="Duchi-3class.mat", X1 = X1, X2 = X2, X3 = X3, X=X, Y_mat = Y, p=p, m=m, C = C)
 
+plot_decision_boundary(X,y,beta = Duchi_pri_opt(X,y,C))
+
 ############################################# 
 w1 <- Variable(p)
 w2 <- Variable(p)
@@ -78,7 +80,7 @@ beta3 <- c(CVXR_Duchi_w3,CVXR_Duchi_b3)
 
 Duchi_primary_beta <- rbind(beta1,beta2,beta3)
 
-
+plot_decision_boundary(X,y,beta = Duchi_primary_beta)
 
   
 #######################
@@ -110,13 +112,11 @@ constraints <- list( sum_entries(b) == 0,
 Duchi <- Problem(objective, constraints)
 system.time(CVXR_Duchi <- solve(Duchi, solver = "MOSEK"))
 
-Duchi_primary_beta
 
 
+plot_decision_boundary(X, y, beta = Duchi_primary_beta, title = "Duchi")
 
 cbind(CVXR_Duchi$getValue(w), CVXR_Duchi$getValue(b))
-
-
 
 plot(X1, col='red', xlim = c(-10,10), ylim=c(-10,10), xlab = "X1", ylab = "X2", main = "Duchi")
 
@@ -148,7 +148,7 @@ Sigma <- diag(10,nrow=2)
 X1 <- mvrnorm(10,c(0,2),Sigma)
 X2 <- mvrnorm(10,c(2,0),Sigma)
 X3 <- mvrnorm(10,c(-2,0),Sigma)
-X4 <- mvrnorm(10,c(-2,-2),Sigma)
+X4 <- mvrnorm(10,c(0,-2),Sigma)
 C <- 1
 X <- rbind(X1,X2,X3,X4)
 
@@ -160,6 +160,8 @@ beta
 
 system.time(beta <- Duchi_dual_opt(X,y,C))
 beta
+plot_decision_boundary(X,y,beta =  Duchi_pri_opt(X,y,C))
+
 
 ################################################################
 n <- nrow(X)

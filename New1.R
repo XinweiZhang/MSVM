@@ -125,3 +125,76 @@ CVXR_New1 <- solve(New1, solver = "MOSEK")
 
 cbind(CVXR_New1$getValue(w),CVXR_New1$getValue(b))
 New1_primary_beta
+
+
+
+
+###########################
+par(mfrow=c(1,1))
+X1 <- matrix(c(2,1),ncol=2)
+X2 <- matrix(c(-2,-1),ncol=2)
+X3 <- matrix(c(-2,1),ncol=2)
+X <- rbind(X1,X2,X3)
+y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
+C <- 100
+
+
+New1_primary_beta <- New1_pri_opt(X,y,C)
+beta1 <- round(New1_primary_beta[1,],2)
+beta2 <- round(New1_primary_beta[2,],2)
+New1_beta1_beta2 <- beta1 - beta2
+New1_beta1_beta3 <- beta1 - 0
+New1_beta2_beta3 <- beta2 - 0
+
+plot(X1, col='red', xlim = c(-4,4), ylim=c(-4,4), xlab = "X1", ylab = "X2", main = "New1")
+points(X2, col='green')
+points(X3, col='blue')
+
+abline(a = -New1_beta1_beta2[3]/New1_beta1_beta2[2], b = -New1_beta1_beta2[1]/New1_beta1_beta2[2], lty =2, col = "red")
+abline(a = -New1_beta1_beta3[3]/New1_beta1_beta3[2], b = -New1_beta1_beta3[1]/New1_beta1_beta3[2], lty =2, col = "red")
+abline(a = -New1_beta2_beta3[3]/New1_beta2_beta3[2], b = -New1_beta2_beta3[1]/New1_beta2_beta3[2], lty =2)
+
+
+
+###########################
+par(mfrow=c(1,1))
+X1 <- matrix(c(-2,1),ncol=2)
+X2 <- matrix(c(2,1),ncol=2)
+X3 <- matrix(c(-2,-1),ncol=2)
+X <- rbind(X1,X2,X3)
+y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
+C <- 100000
+
+Duchi_primary_beta <- Duchi_pri_opt(X,y,C)
+beta = Duchi_primary_beta
+
+plot_decision_boundary <- function(X, y, beta, title = NULL, np_reslution = 500){
+  
+  if(nrow(beta) == length(unique(y))){
+    X_dat <- as.data.frame(X)
+    nd.x = seq(from = floor(min(X_dat$V1))-1, to =  ceiling(max(X_dat$V1))+1, length.out = np_reslution)
+    nd.y = seq(from = floor(min(X_dat$V1))-1, to =  ceiling(max(X_dat$V2))+1, length.out = np_reslution)
+    nd = expand.grid(Var1 = nd.x, Var2 = nd.y)
+    prd = apply(as.matrix(cbind(nd,1))%*%t(beta), MARGIN = 1, FUN = which.max)
+  }else{
+    X_dat <- as.data.frame(X)
+    nd.x = seq(from = floor(min(X_dat$V1))-1, to =  ceiling(max(X_dat$V1))+1, length.out = np_reslution)
+    nd.y = seq(from = floor(min(X_dat$V1))-1, to =  ceiling(max(X_dat$V2))+1, length.out = np_reslution)
+    nd = expand.grid(Var1 = nd.x, Var2 = nd.y)
+    prd_p = as.matrix(cbind(nd,1))%*%t(beta)
+    prd_p =  cbind(prd_p, 1 - apply(as.matrix(cbind(prd_p[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(prd_p[,2]+1,0)), MARGIN = 1, FUN = max))
+    prd = apply(prd_p, MARGIN = 1, FUN = which.max)
+  }
+  par(mar=c(5.1, 4.1, 4.1, 7), xpd=TRUE)
+  plot(X_dat$V1, X_dat$V2, col = as.factor(y), 
+       ylim=c( floor(min(X_dat$V2))-1, ceiling(max(X_dat$V2))+1), xlim=c( floor(min(X_dat$V1))-1, ceiling(max(X_dat$V1))+1), xlab ="X", ylab = "Y", main = title)
+  
+  contour(x = nd.x, y = nd.y, z = matrix(prd, nrow = np_reslution, ncol = np_reslution), 
+          levels = unique(y), add = TRUE, drawlabels = FALSE)
+  
+  legend("topright", inset=c(-0.3,0),legend = sapply(unique(y), function(x){paste("Class ",x)}), col= unique(y), pch = 1)
+}
+
+
+plot_decision_boundary(X,y,Duchi_primary_beta, title = "Duchi")
+plot_decision_boundary(X,y,New1_primary_beta, title = "New1")
