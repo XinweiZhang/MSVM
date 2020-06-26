@@ -21,7 +21,6 @@ WW_pri_opt <- function(X,y,C){
   return(cbind(CVXR_WW$getValue(w),CVXR_WW$getValue(b)))
 }
 
-
 CS_pri_opt <- function(X,y,C){
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
@@ -350,7 +349,7 @@ data_generate <- function(n, sep =  1,  v = 1.5^2){
   # X1 <- mvrnorm(n1, sep*c(0,2), diag(c(1,8),nrow=2))
   # X2 <- mvrnorm(n2, sep*c(sqrt(3),-1),   matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2))
   # X3 <- mvrnorm(n3, sep*c(-sqrt(3),-1), matrix(c(4.5,3.5,3.5,4.5), nrow= 2))
-  # 
+  #       
   ########  Plan IV     #############
   # X1 <- mvrnorm(n, sep*c(0,2), diag(c(10,2),nrow=2))
   # X2 <- mvrnorm(n, sep*c(sqrt(3),-1),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2))
@@ -363,7 +362,7 @@ data_generate <- function(n, sep =  1,  v = 1.5^2){
   return(list(X = X,y = y))
 }
 
-plot_decision_boundary <- function(X, y, beta, title = NULL, np_reslution = 500, xlim =NULL, ylim = NULL){
+plot_decision_boundary <- function(X, y, beta, title = NULL, np_resolution = 500, xlim =NULL, ylim = NULL, dagger_rule_w = F, dagger_rule_s = F){
   X_dat <- as.data.frame(X)
   if(is.null(xlim)){
     xlim = c( floor(min(X_dat$V1))-1, ceiling(max(X_dat$V1))+1)
@@ -372,23 +371,99 @@ plot_decision_boundary <- function(X, y, beta, title = NULL, np_reslution = 500,
     ylim = c( floor(min(X_dat$V2))-1, ceiling(max(X_dat$V2))+1)
   }
   
-  nd.x = seq(from = xlim[1], to =  xlim[2], length.out = np_reslution)
-  nd.y = seq(from = ylim[1], to =  ylim[2], length.out = np_reslution)
+  nd.x = seq(from = xlim[1], to =  xlim[2], length.out = np_resolution)
+  nd.y = seq(from = ylim[1], to =  ylim[2], length.out = np_resolution)
   nd = expand.grid(Var1 = nd.x, Var2 = nd.y)
   if(nrow(beta) == length(unique(y))){
     prd = apply(as.matrix(cbind(nd,1))%*%t(beta), MARGIN = 1, FUN = which.max)
   }else{
-    prd_p = as.matrix(cbind(nd,1))%*%t(beta)
-    prd_p =  cbind(prd_p, 1 - apply(as.matrix(cbind(prd_p[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(prd_p[,2]+1,0)), MARGIN = 1, FUN = max))
-    prd = apply(prd_p, MARGIN = 1, FUN = which.max)
+    if(dagger_rule_w==T && dagger_rule_s == F){
+      prd_p = as.matrix(cbind(nd,1))%*%t(beta)
+      prd_p =  cbind(prd_p, 0 - apply(as.matrix(cbind(prd_p[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(prd_p[,2]+1,0)), MARGIN = 1, FUN = max))
+      prd = apply(prd_p, MARGIN = 1, FUN = which.max)
+    }else if(dagger_rule_w==F && dagger_rule_s == T){
+      prd_p = as.matrix(cbind(nd,1))%*%t(beta)
+      prd_p =  cbind(prd_p, 1 - apply(as.matrix(cbind(prd_p[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(prd_p[,2]+1,0)), MARGIN = 1, FUN = max))
+      prd = apply(prd_p, MARGIN = 1, FUN = which.max)
+    }else{
+      prd_p = as.matrix(cbind(nd,1))%*%t(rbind(beta,0))
+      prd = apply(prd_p, MARGIN = 1, FUN = which.max)
+    }
   }
  
   op <-  par(mfrow = c(1,1), mar=c(5.1, 4.1, 4.1, 7), xpd=TRUE)
   plot(X_dat$V1, X_dat$V2, col = as.factor(y), ylim=ylim, xlim=xlim, xlab ="X", ylab = "Y", main = title)
   
-  contour(x = nd.x, y = nd.y, z = matrix(prd, nrow = np_reslution, ncol = np_reslution), 
+  contour(x = nd.x, y = nd.y, z = matrix(prd, nrow = np_resolution, ncol = np_resolution), 
           levels = unique(y), add = TRUE, drawlabels = FALSE)
+
   
   legend("topright", inset=c(-0.3,0),legend = sapply(unique(y), function(x){paste("Class ",x)}), col= unique(y), pch = 1)
   par(op)
 }
+
+
+
+plot_nearest_neighbour_decision_boundary <- function(X, y, dis = "L2", title = NULL, np_resolution = 500, xlim =NULL, ylim = NULL, dagger_rule = T){
+  X_dat <- as.data.frame(X)
+  if(is.null(xlim)){
+    xlim = c( floor(min(X_dat$V1))-1, ceiling(max(X_dat$V1))+1)
+  }
+  if(is.null(ylim)){
+    ylim = c( floor(min(X_dat$V2))-1, ceiling(max(X_dat$V2))+1)
+  }
+  
+  nd.x = seq(from = xlim[1], to =  xlim[2], length.out = np_resolution)
+  nd.y = seq(from = ylim[1], to =  ylim[2], length.out = np_resolution)
+  nd = expand.grid(Var1 = nd.x, Var2 = nd.y)
+  
+  if(dis == "L2"){
+    prd <- apply(nd, MARGIN = 1, function(s,X){which.min(apply(X,MARGIN=1,FUN = function(t){sqrt(sum((s-t)^2))}))},X)
+  }else{
+    prd <- apply(nd, MARGIN = 1, function(s,X){which.min(apply(X,MARGIN=1,FUN = function(t){sum(abs(s-t))}))},X)
+  }
+  op <-  par(mfrow = c(1,1), mar=c(5.1, 4.1, 4.1, 7), xpd=TRUE)
+  plot(X_dat$V1, X_dat$V2, col = as.factor(y), ylim=ylim, xlim=xlim, xlab ="X", ylab = "Y", main = title)
+  
+  contour(x = nd.x, y = nd.y, z = matrix(prd, nrow = np_resolution, ncol = np_resolution), 
+          levels = unique(y), add = TRUE, drawlabels = FALSE)
+  
+  
+  legend("topright", inset=c(-0.3,0),legend = sapply(unique(y), function(x){paste("Class ",x)}), col= unique(y), pch = 1)
+  par(op)
+}
+
+four_class_data_generate <- function(n, sep =  1,  v = 1.5^2){
+  y <- sort(sample(c(1,2,3,4), size = n-4, replace = T, prob =  1/rep(4,4)))
+  n1 <- sum(y==1)+1
+  n2 <- sum(y==2)+1
+  n3 <- sum(y==3)+1
+  n4 <- sum(y==4)+1
+  # 
+  X1 <- matrix(mvrnorm(n1, sep*c(2,2), diag(v,nrow=2)), nrow=n1)
+  X2 <- matrix(mvrnorm(n2, sep*c(2,-2), diag(v,nrow=2)), nrow=n2)
+  X3 <- matrix(mvrnorm(n3, sep*c(-2,2), diag(v,nrow=2)), nrow=n3)
+  X4 <- matrix(mvrnorm(n4, sep*c(-2,-2), diag(v,nrow=2)), nrow=n4)
+  ########  Plan II     #############
+  # X1 <- matrix(mvrnorm(n1, sep*c(-2,-2),  matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2)), nrow=n1)
+  # X2 <- matrix(mvrnorm(n2, sep*c(2,-2),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2)), nrow=n2)
+  # X3 <- matrix(mvrnorm(n3, sep*c(2,2), matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2)), nrow=n3)
+  # X4 <- matrix(mvrnorm(n4, sep*c(-2,2),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2)), nrow=n4)
+
+  ########  Plan III     #############
+  # X1 <- mvrnorm(n1, sep*c(0,2), diag(c(1,8),nrow=2))
+  # X2 <- mvrnorm(n2, sep*c(sqrt(3),-1),   matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2))
+  # X3 <- mvrnorm(n3, sep*c(-sqrt(3),-1), matrix(c(4.5,3.5,3.5,4.5), nrow= 2))
+  # 
+  ########  Plan IV     #############
+  # X1 <- mvrnorm(n, sep*c(0,2), diag(c(10,2),nrow=2))
+  # X2 <- mvrnorm(n, sep*c(sqrt(3),-1),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2))
+  # a <- matrix(c(cos(pi/3),-sin(pi/3), sin(pi/3), cos(pi/3)), nrow = 2)
+  # Sigma3 <- a%*%diag(c(8,1))%*%t(a)
+  # X3 <- mvrnorm(n, sep*c(-sqrt(3),-1), Sigma3)
+  
+  X <- rbind(X1,X2,X3,X4)
+  y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)),rep(4,nrow(X4)))
+  return(list(X = X,y = y))
+}
+

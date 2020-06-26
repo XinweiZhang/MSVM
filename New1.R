@@ -131,11 +131,8 @@ New1_primary_beta
 
 ###########################
 par(mfrow=c(1,1))
-X1 <- matrix(c(2,1),ncol=2)
-X2 <- matrix(c(-2,-1),ncol=2)
-X3 <- matrix(c(-2,1),ncol=2)
-X <- rbind(X1,X2,X3)
-y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
+X = rbind(c(-2,1),c(-2,-1),c(2,1))
+y <- c(1,2,3)
 C <- 100
 
 
