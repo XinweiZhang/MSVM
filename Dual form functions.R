@@ -43,11 +43,11 @@ Duchi_dual_opt <- function(X,y,C){
         if(i==m){
           break
         }
-        lpred_dif_b <- (1+lpred_dif)*(round(alpha_sol,zero_tol)>0 & round(tau_sum - alpha_sol,zero_tol) >0) * (y==i)%*%matrix(1,nrow=1, ncol = m)
+        lpred_dif_b <- (1+lpred_dif)*(round(alpha_sol,zero_tol)>0 & round(tau_sum - alpha_sol,zero_tol) > 0) * (y==i)%*%matrix(1,nrow=1, ncol = m)
         lpred_dif_b[lpred_dif_b == 0] <- NA
         b_tmp <- colMeans(lpred_dif_b, na.rm = T)[j]
         
-        lpred_dif_b_inv <- (1+lpred_dif)*(round(alpha_sol,zero_tol)>0 & round(tau_sum - alpha_sol,zero_tol) >0) * (y==j)%*%matrix(1,nrow=1, ncol = m)
+        lpred_dif_b_inv <- (1+lpred_dif)*(round(alpha_sol,zero_tol)>0 & round(tau_sum - alpha_sol,zero_tol) > 0) * (y==j)%*%matrix(1,nrow=1, ncol = m)
         lpred_dif_b_inv[lpred_dif_b_inv == 0] <- NA
         b_tmp <- c(b_tmp ,-colMeans(lpred_dif_b_inv, na.rm = T)[i])
         
@@ -237,7 +237,7 @@ MSVM8_dual_opt <- function(X,y,C){
   
   constraints <- list(sum_entries(alpha*Delta, axis = 2) ==0,
                       alpha>=0, 
-                      (alpha*(1-Y) + (alpha*Y)%*%matrix(1,nrow=3,ncol=3))<=C) 
+                      (alpha*(1-Y) + (alpha*Y)%*%matrix(1,nrow=m,ncol=m))<=C) 
   
   
   MSVM8_dual <- Problem(objective, constraints)

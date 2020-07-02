@@ -14,12 +14,12 @@ mu3 <- c(-3,-2)
 X1 <- mvrnorm(10,mu1,matrix(c(10,0,0,10),nrow=2))
 X2 <- mvrnorm(10,mu2,matrix(c(10,0,0,10),nrow=2))
 X3 <- mvrnorm(10,mu3,matrix(c(10,0,0,10),nrow=2))
-y <- c(rep(1,10),rep(2,10),rep(3,10))
+y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
 X <- rbind(X1,X2,X3)
-X1 = matrix(c(-2,1), nrow = 1)
-X2 = matrix(c(-2,-1), nrow =1)
-X3 = matrix(c(2,1), nrow = 1)
-y = c(1,2,3)
+# X1 = matrix(c(-2,1), nrow = 1)
+# X2 = matrix(c(-2,-1), nrow =1)
+# X3 = matrix(c(2,1), nrow = 1)
+# y = c(1,2,3)
 
 #
 # Oracle_beta1_beta2 <- c(2*(mu1-mu2), sum(mu1^2)-sum(mu2^2))
@@ -110,3 +110,40 @@ CS_beta2_beta3 <- beta2 - beta3
 abline(a = -CS_beta1_beta2[3]/CS_beta1_beta2[2], b = -CS_beta1_beta2[1]/CS_beta1_beta2[2], lty =2, col = "red")
 abline(a = -CS_beta1_beta3[3]/CS_beta1_beta3[2], b = -CS_beta1_beta3[1]/CS_beta1_beta3[2], lty =2, col = "red")
 abline(a = -CS_beta2_beta3[3]/CS_beta2_beta3[2], b = -CS_beta2_beta3[1]/CS_beta2_beta3[2], lty =2)
+
+
+################################################
+
+class_idx <- sort(unique(y))
+
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+n <- nrow(X)
+p <- ncol(X)
+m <- length(class_idx)
+
+K <- kernelMatrix(vanilladot(), X)
+suppressWarnings(class(K) <- "matrix")
+
+v <- Variable(n,m)
+b <- Variable(m)
+slack <- Variable(rows = n, cols = m)
+
+objective <- Minimize(sum(do.call(rbind,sapply(1:m, FUN = function(k){quad_form(v[,k],K)})))/2  + C*sum_entries(max_entries((1-Y)*slack, axis = 1)))
+constraints <- list( ((K%*%v + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (K%*%v  + matrix(1,nrow=n,ncol =1)%*%t(b)) >= 1-slack,
+                     sum_entries(b)*matrix(1,nrow=n) + K %*% sum_entries(v, axis = 1) == 0,
+                     slack >=0)
+
+
+CS <- Problem(objective, constraints)
+CVXR_CS <- solve(CS, solver = "MOSEK")
+CVXR_CS_v <- CVXR_CS$getValue(v)
+CVXR_CS_b <- CVXR_CS$getValue(b)
+
+model <- list(v = CVXR_CS_v, b = as.numeric(CVXR_CS_b), kernel = kernel, X = X, y= y)
+class(model) <- "msvm_kernel"
+
+CS_fit <- CS_kernel_pri_opt(X,y,C=1, kernel = vanilladot())
+
+cbind(t(CS_fit$v)%*%X,CS_fit$b)
+
+

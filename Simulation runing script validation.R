@@ -23,10 +23,10 @@ source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
 
 ############################################
 ## Plan I Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
-# sep_list <-  c(.36, .45, .55, .65, .76, .88, 1.01, 1.17,  1.37, 1.66, 2.30)
+sep_list <-  c(.36, .45, .55, .65, .76, .88, 1.01, 1.17,  1.37, 1.66, 2.30)
 
 #### Plan II Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
-sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95, 3.9)
+# sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95, 3.9)
 
 #### Plan III Separation: .5, .55, .60, .65, .70, .75, .80, .85, 90, .95, .99
 # sep_list <- c(.26, .44, .62, .80, 1, 1.2, 1.45, 1.72, 2.1, 2.6, 3.7)
@@ -35,54 +35,56 @@ sep_list <- c(.59, .68, .77, .86, .97, 1.08, 1.22, 1.38, 1.60, 1.95, 3.9)
 # sep_list <- c(.63, .73, .83, .93, 1.04, 1.17, 1.31, 1.47, 1.68, 2.01, 3.51)
 
 # sep_list <- c(.93, 1.13)
-n_list <- c(50, 100)
+n_list <- c(30, 60)
 # n_list <- c(10,15)
 
 C_list <- 2 ^ seq(15, -16)
-rep_n <- 50
+# C_list <- 2 ^ seq(1, -1)
+rep_n <- 40
 
 res.array <- array(0, dim = c(length(sep_list), length(n_list), 10, rep_n))
-# i <- j <- 1 
+i <- j <- 1
 
 cl <- makeCluster(10)
+clusterExport(
+  cl = cl,
+  varlist = c(
+    "WW_pri_opt",
+    "Duchi_pri_opt",
+    "MDuchi_pri_opt",
+    "CS_pri_opt",
+    "LLW_pri_opt",
+    "OVA_pri_opt",
+    "MSVM8_pri_opt",
+    "MSVM7_pri_opt",
+    "New1_pri_opt",
+    "New3_pri_opt",
+    "ginv",
+    "solve",
+    "Minimize",
+    "sum_squares",
+    "sum_entries",
+    "vstack",
+    "reshape_expr",
+    "Variable",
+    "Problem",
+    "max_entries",
+    "min_entries",
+    "pred",
+    "data_generate",
+    "mvrnorm",
+    "Maximize",
+    "vec"
+  ),
+  envir = environment()
+)
 for (i in 1:length(sep_list)) {
   oracle_data <- data_generate(1000000, sep = sep_list[i])
-  oracle <- multinom(oracle_data$y ~ oracle_data$X, trace = F)
-  oracle_acc <- mean(predict(oracle, oracle_data$X) == oracle_data$y)
+  # oracle <- multinom(oracle_data$y ~ oracle_data$X, trace = F)
+  # oracle_acc <- mean(predict(oracle, oracle_data$X) == oracle_data$y)
   
   for (j in 1:length(n_list)) {
-    clusterExport(
-      cl = cl,
-      varlist = c(
-        "WW_pri_opt",
-        "Duchi_pri_opt",
-        "MDuchi_pri_opt",
-        "CS_pri_opt",
-        "LLW_pri_opt",
-        "OVA_pri_opt",
-        "MSVM8_pri_opt",
-        "MSVM7_pri_opt",
-        "New1_pri_opt",
-        "New3_pri_opt",
-        "ginv",
-        "solve",
-        "Minimize",
-        "sum_squares",
-        "sum_entries",
-        "vstack",
-        "reshape_expr",
-        "Variable",
-        "Problem",
-        "max_entries",
-        "min_entries",
-        "pred",
-        "data_generate",
-        "mvrnorm",
-        "Maximize",
-        "vec"
-      ),
-      envir = environment()
-    )
+    
     acc.res <-
       parSapply(cl, 1:rep_n, function(s, C_list, oracle_data, n, sep) {
         # n = n_list[j]; sep = sep_list[i];
@@ -185,21 +187,21 @@ for (i in 1:length(sep_list)) {
         New1_acc <- tryCatch({
           opt_idx <- which.max(sapply(C_list, function(C) {
             New1_w <- New1_pri_opt(train_data$X, train_data$y, C)
-            mean(pred(val_data$X, New1_w, "s") == val_data$y)
+            mean(pred(val_data$X, New1_w, "dagger_new1") == val_data$y)
           }))
           New1_w <- New1_pri_opt(train_data$X, train_data$y, C_list[opt_idx])
-          mean(pred(oracle_data$X, New1_w, "s") == oracle_data$y)
+          mean(pred(oracle_data$X, New1_w, "dagger_new1") == oracle_data$y)
         }, error = function(e) {
-          return(NA)
+        return(NA)
         })
         
         New3_acc <- tryCatch({
           opt_idx <- which.max(sapply(C_list, function(C) {
             New3_w <- New3_pri_opt(train_data$X, train_data$y, C)
-            mean(pred(val_data$X, New3_w, "s") == val_data$y)
+            mean(pred(val_data$X, New3_w, "dagger_new1") == val_data$y)
           }))
           New3_w <- New3_pri_opt(train_data$X, train_data$y, C_list[opt_idx])
-          mean(pred(oracle_data$X, New3_w, "s") == oracle_data$y)
+          mean(pred(oracle_data$X, New3_w, "dagger_new1") == oracle_data$y)
         }, error = function(e) {
           return(NA)
         })
@@ -253,7 +255,7 @@ save(
   summary.res.arry,
   file =
     paste(
-      "~/Desktop/Multiclass Classification/MSVM Code/MSVM(3 class, Plan II, val same), sep=",
+      "~/Desktop/Multiclass Classification/MSVM Code/MSVM(3 class, Plan I, val same), sep=",
       length(sep_list),
       ", n_list=",
       length(n_list),

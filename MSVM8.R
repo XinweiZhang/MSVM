@@ -1,10 +1,13 @@
 library(CVXR)
 library(MASS)
+library(kernlab)
+
 # set.seed(12453)
 par(mfrow=c(2,2))
 rm(list = ls())
 
 source("~/Desktop/Multiclass Classification/MSVM Code/primary form functions.R")
+source("~/Desktop/Multiclass Classification/MSVM Code/kernel primary form functions.R")
 source("~/Desktop/Multiclass Classification/MSVM Code/Dual form functions.R")
 p <- 2
 m <- 3
@@ -150,7 +153,7 @@ objective <- Maximize(-1/2*sum_entries((t(alpha*Delta)%*%X)^2) +  sum_entries(al
 # C = 1
 constraints <- list(sum_entries(alpha*Delta, axis = 2) ==0,
                     alpha>=0, 
-                    (alpha*(1-Y) + (alpha*Y)%*%matrix(1,nrow=3,ncol=3))<=C) 
+                    (alpha*(1-Y) + (alpha*Y)%*%matrix(1,nrow=m,ncol=m))<=C) 
 
 
 MSVM8_dual <- Problem(objective, constraints)
@@ -163,7 +166,7 @@ w <- -t(alpha_sol*Delta)%*%X
 
 lpred <- X%*%t(w)
 alpha_sol <- round(alpha_sol,3)
-balpha <- (alpha_sol*(1-Y) + (alpha_sol*Y)%*%matrix(1,nrow=3,ncol=3))
+balpha <- (alpha_sol*(1-Y) + (alpha_sol*Y)%*%matrix(1,nrow=m,ncol=m))
 KKT1 <- (0 <= alpha_sol*(1-Y) & 0 <  balpha*(1-Y) &   balpha*(1-Y) < C)
 KKT2 <- (0 <= alpha_sol*Y & alpha_sol*Y <= C & matrix(rep(apply(balpha*(1-Y), MARGIN = 1, FUN = function(x){max(x) <= C}),m), nrow=n,ncol=m))
 
@@ -232,3 +235,121 @@ abline(a = -MSVM8_beta2_beta3[3]/MSVM8_beta2_beta3[2], b = -MSVM8_beta2_beta3[1]
 # }
 # res
 # sum((t(alpha_sol*Delta)%*%X)^2)
+#######################################
+##########Kernel Version################
+
+X <- rbind(c(-3,5),c(2,-2),c(8,4),c(-4,-1),c(-7,2))
+y = c(1,2,3,4,4)
+# v=10.5
+p=2
+X1 <- mvrnorm(50, c(-2,3), matrix(5*c(2,1,1,2), nrow =2))
+X2 <- mvrnorm(50, c(3,-2), matrix(5*c(5,-1,-1,3), nrow =2))
+X3 <- mvrnorm(50, c(-3,-3), diag(10.5,p))
+y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
+X <- rbind(X1,X2,X3)
+
+
+
+Y <- sapply(unique(y), function(id){as.numeric(y==id)})
+K <- kernelMatrix(rbfdot(sigma = 1), X)
+          
+# K <- as.matrix(kernelMatrix(vanilladot(), X))
+suppressWarnings(class(K) <- "matrix")
+
+
+K
+n <- nrow(X)
+m <- length(unique(y))
+v <- Variable(n,m)
+b <- Variable(m)
+
+slack <- Variable(rows = n, cols = m)
+
+C <- 1
+
+# objective <- Minimize(matrix_trace(t(v)%*%K%*%v)  + sum_entries(slack)   )
+# chol(K)
+# sum(do.call(rbind,sapply(1:m, FUN = function(k){quad_form(v[,k],K)})))
+# objective <- Minimize((quad_form(v[,1],K)+quad_form(v[,2],K)+quad_form(v[,3],K)+quad_form(v[,4],K))/2  + C*sum_entries(slack)   )
+objective <- Minimize(sum(do.call(rbind,sapply(1:m, FUN = function(k){quad_form(v[,k],K)})))/2  + C*sum_entries(slack)   )
+constraints <- list(sum_entries((K%*%v + matrix(1,nrow=n,ncol =1)%*%t(b))*Y,1) >= 1 - sum_entries(slack, axis = 1),
+                    (K%*%v +  matrix(1,nrow=n,ncol =1)%*%t(b))*(Y-1) >= (1-Y)*(1 - slack),
+                    slack >= 0)
+
+system.time(MSVM8 <- Problem(objective, constraints))
+
+
+CVXR_MSVM8 <- solve(MSVM8, solver = "MOSEK")
+
+CVXR_MSVM8_v <- CVXR_MSVM8$getValue(v)
+CVXR_MSVM8_b <- CVXR_MSVM8$getValue(b)
+
+rbind(CVXR_MSVM8_v, t(CVXR_MSVM8_b))
+
+
+cbind(t(CVXR_MSVM8_v)%*%X,CVXR_MSVM8_b)
+MSVM8_pri_opt(X,y,C=1)
+ # system.time(res <-MSVM8_kernel_pri_opt(X,y,C=1, vanilladot()))
+
+ # system.time(  res <- OVA_kernel_pri_opt(X,y,C=1, vanilladot()))
+
+
+# res
+# cbind(t(res$v)%*%rbind(X),res$b)
+# 
+# plot_decision_boundary(X,y,beta = MSVM8_pri_opt(X,y,C=1))
+# plot_decision_boundary(X,y,beta = cbind(t(CVXR_MSVM8_v)%*%X,CVXR_MSVM8_b))
+# 
+
+
+##########Kernel Dual Version################
+
+# X <- rbind(c(-3,5),c(2,-2),c(8,4),c(-4,-1),c(-7,2))
+# y = c(1,2,3,4,4)
+# Y <- sapply(unique(y), function(id){as.numeric(y==id)})
+# K <- kernelMatrix(rbfdot(sigma = 1), X)
+
+n <- nrow(X)
+m <- length(unique(y))
+p <- ncol(X)
+
+Delta <- matrix(1, nrow  = n, ncol = m) - 2*Y
+alpha <- Variable(rows = n, cols = m)
+
+objective <- Maximize(-1/2*sum(do.call(rbind,sapply(1:m, FUN = function(i){quad_form((alpha*Delta)[,i],K)})))  + sum_entries(alpha)   )
+
+# objective <- Maximize(-1/2*sum_entries((t(alpha*Delta)%*%X)^2) +  sum_entries(alpha))
+
+# C = 1
+constraints <- list(sum_entries(alpha*Delta, axis = 2) ==0,
+                    alpha>=0, 
+                    (alpha*(1-Y) + (alpha*Y)%*%matrix(1,nrow=m,ncol=m))<=C) 
+
+
+MSVM8_dual <- Problem(objective, constraints)
+# CVXR_MSVM8_dual$value
+
+system.time(CVXR_MSVM8_dual <- solve(MSVM8_dual, solver = "MOSEK"))
+
+alpha_sol <- CVXR_MSVM8_dual$getValue(alpha)
+v <- -alpha_sol*Delta
+# round(v,2)
+lpred <- X%*%t(w)
+alpha_sol <- round(alpha_sol,3)
+balpha <- (alpha_sol*(1-Y) + (alpha_sol*Y)%*%matrix(1,nrow = m,ncol = m))
+KKT1 <- (0 <= alpha_sol*(1-Y) & 0 <  balpha*(1-Y) &   balpha*(1-Y) < C)
+KKT2 <- (0 <= alpha_sol*Y & alpha_sol*Y <= C & matrix(rep(apply(balpha*(1-Y), MARGIN = 1, FUN = function(x){max(x) <= C}),m), nrow=n,ncol=m))
+
+b <- sapply(unique(y), function(id){ 
+  bb <- NULL
+  if(sum(KKT1[,id]) > 0){
+    bb <- -1 - max(lpred[KKT1[,id],id])
+  }
+  if(is.null(bb) & sum(KKT2[,id]) > 0){
+    bb <- 1 - min(lpred[KKT2[,id],id])
+  }
+  return(bb)
+}
+)
+b
+

@@ -100,7 +100,7 @@ objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
 
 
 constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(1- slack),
-                    sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=(1- sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
+                    sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=(0 - sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
                     slack >=0)
 
 MSVM7 <- Problem(objective, constraints)
@@ -109,3 +109,65 @@ CVXR_MSVM7 <- solve(MSVM7, solver = "MOSEK")
 cbind(CVXR_MSVM7$getValue(w),CVXR_MSVM7$getValue(b))
 MSVM7_primary_beta
 
+
+########################Kernel Version#########################
+
+
+X <- rbind(c(-3,5),c(2,-2),c(8,4),c(-4,-1),c(-7,2))
+y = c(1,2,3,4,4)
+# v=10.5
+p=2
+X1 <- mvrnorm(50, c(-2,3), matrix(c(2,1,1,2), nrow =2))
+X2 <- mvrnorm(50, c(3,-2), matrix(c(5,-1,-1,3), nrow =2))
+X3 <- mvrnorm(50, c(-3,-3), diag(2.5,p))
+y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)))
+X <- rbind(X1,X2,X3)
+
+class_idx <- sort(unique(y))
+m <- length(class_idx)
+if(is.null(base_class)){
+  Y <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y==id)})
+}else{
+  Y <- sapply(class_idx[class_idx!=base_class], function(id){as.numeric(y==id)})
+}
+
+K <- kernelMatrix( vanilladot(), X)
+
+
+suppressWarnings(class(K) <- "matrix")
+# K
+n <- nrow(X)
+m <- length(unique(y))
+v <- Variable(n,m-1)
+b <- Variable(m-1)
+
+slack <- Variable(rows = n, cols = m-1)
+
+C <- 1
+
+objective <- Minimize(sum(do.call(rbind,sapply(1:(m-1), FUN = function(k){quad_form(v[,k],K)})))/2  + C*sum_entries(slack)   )
+constraints <- list(sum_entries((K%*%v + matrix(1,nrow=n,ncol =1)%*%t(b))*Y, axis = 1) >= (1 - sum_entries(slack, axis = 1))*sum_entries(Y,axis=1),
+                    (K%*%v +  matrix(1,nrow=n,ncol =1)%*%t(b))*(Y-1) >= (1-Y)*(1 - slack),
+                    slack >= 0)
+
+
+
+MSVM7 <- Problem(objective, constraints)
+CVXR_MSVM7 <- solve(MSVM7, solver = "MOSEK")
+
+CVXR_MSVM7_v <- CVXR_MSVM7$getValue(v)
+CVXR_MSVM7_b <- CVXR_MSVM7$getValue(b)
+
+# rbind(CVXR_MSVM7_v, t(CVXR_MSVM8_b))
+# debugonce(MSVM7_pri_opt)
+MSVM7_pri_opt(X,y,C=1)
+
+  
+cbind(t(CVXR_MSVM7_v)%*%X,CVXR_MSVM7_b)
+
+MSVM7_fit <- MSVM7_kernel_pri_opt(X,y,C=1, vanilladot())
+cbind(t(MSVM7_fit$v)%*%MSVM7_fit$X,MSVM7_fit$b)
+
+
+mean(predict(MSVM7_fit, X,  rule = "dagger_MSVM7")==y)
+plot_decision_kernel_boundary(MSVM7_fit, title = "MSVM7", rule = "dagger_MSVM7")

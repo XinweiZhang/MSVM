@@ -131,7 +131,7 @@ draw_line(weak_hard_beta[3,] - weak_hard_beta[1,]+c(0,0,-1))
 draw_line(weak_hard_beta[3,] - weak_hard_beta[1,]+c(0,0,1))
 
 
-##########sum_of_max
+##########sum_of_max  
 rescale_par <- Rescale4_beta(X,y,NN_beta,type = "sum_of_max")
 rescale_par$value
 rescale_par$gamma

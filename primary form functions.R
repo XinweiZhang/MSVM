@@ -206,8 +206,8 @@ MSVM7_pri_opt <- function(X,y,C, base_class = NULL){
   slack <- Variable(rows = n, cols = m-1)
   
   objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
-  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(1- slack),
-                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=(1- sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
+  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(0 - slack),
+                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=(1 - sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
                       slack >=0)
   
   MSVM7 <- Problem(objective, constraints)
@@ -247,6 +247,7 @@ New1_pri_opt <- function(X,y,C){
   
   class_idx <- sort(unique(y))
   m = length(class_idx)
+  n <- nrow(X)
   X_p1 <- X[y!=class_idx[m],,drop = F]
   X_p2 <- X[y==class_idx[m],,drop = F]
   n_p1 <- nrow(X_p1)
@@ -283,6 +284,7 @@ New3_pri_opt <- function(X,y,C){
   
   class_idx <- sort(unique(y))
   m = length(class_idx)
+  n <- nrow(X)
   X_p1 <- X[y!=class_idx[m],,drop = F]
   X_p2 <- X[y==class_idx[m],,drop = F]
   n_p1 <- nrow(X_p1)
@@ -323,9 +325,12 @@ pred <- function(X_test,w, rule = "simple_max"){
   lpred <- cbind(X_test,1)%*%t(w)
   if(rule == "simple_max"){
     y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
-  }else
+  }else if(rule == "dagger_new1")
   {
-    lpred <- cbind(lpred, 1 - apply(as.matrix(cbind(lpred[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(lpred[,2]+1,0)), MARGIN = 1, FUN = max))
+    lpred <- cbind(lpred, 0 - apply(as.matrix(cbind(lpred[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(lpred[,2]+1,0)), MARGIN = 1, FUN = max))
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+  }else{
+    lpred <- cbind(lpred, 1 - apply(as.matrix(cbind(lpred[,1],0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(lpred[,2],0)), MARGIN = 1, FUN = max))
     y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
   }
   return(y_pred)
@@ -337,13 +342,13 @@ data_generate <- function(n, sep =  1,  v = 1.5^2){
   n2 <- sum(y==2)+1
   n3 <- sum(y==3)+1
   
-  # X1 <- matrix(mvrnorm(n1, sep*c(0,2), diag(v,nrow=2)), nrow=n1)
-  # X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1), diag(v,nrow=2)), nrow=n2)
-  # X3 <- matrix(mvrnorm(n3, sep*c(-sqrt(3),-1), diag(v,nrow=2)), nrow=n3)
+  X1 <- matrix(mvrnorm(n1, sep*c(0,2), diag(v,nrow=2)), nrow=n1)
+  X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1), diag(v,nrow=2)), nrow=n2)
+  X3 <- matrix(mvrnorm(n3, sep*c(-sqrt(3),-1), diag(v,nrow=2)), nrow=n3)
   # ########  Plan II     #############
-  X1 <- matrix(mvrnorm(n1, sep*c(-sqrt(3),-1),  matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2)), nrow=n1)
-  X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2)), nrow=n2)
-  X3 <- matrix(mvrnorm(n3, sep*c(0,2), diag(c(8,1),nrow=2)), nrow=n3)
+  # X1 <- matrix(mvrnorm(n1, sep*c(-sqrt(3),-1),  matrix(c(4.5,-3.5,-3.5,4.5), nrow= 2)), nrow=n1)
+  # X2 <- matrix(mvrnorm(n2, sep*c(sqrt(3),-1),  matrix(c(4.5,3.5,3.5,4.5), nrow= 2)), nrow=n2)
+  # X3 <- matrix(mvrnorm(n3, sep*c(0,2), diag(c(8,1),nrow=2)), nrow=n3)
 
   ########  Plan III     #############
   # X1 <- mvrnorm(n1, sep*c(0,2), diag(c(1,8),nrow=2))

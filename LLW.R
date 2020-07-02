@@ -108,3 +108,34 @@ LLW_beta2_beta3 <- LLW_beta2 - LLW_beta3
 abline(a = -LLW_beta1_beta2[3]/LLW_beta1_beta2[2], b = -LLW_beta1_beta2[1]/LLW_beta1_beta2[2], lty =2, col = "red")
 abline(a = -LLW_beta1_beta3[3]/LLW_beta1_beta3[2], b = -LLW_beta1_beta3[1]/LLW_beta1_beta3[2], lty =2, col = "red")
 abline(a = -LLW_beta2_beta3[3]/LLW_beta2_beta3[2], b = -LLW_beta2_beta3[1]/LLW_beta2_beta3[2], lty =2)
+
+################Kernel Version#########################
+class_idx <- sort(unique(y))
+Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+n <- nrow(X)
+p <- ncol(X)
+m <- length(class_idx)
+
+v <- Variable(n,m)
+b <- Variable(m)
+slack <- Variable(rows = n, cols = m)
+K <- kernelMatrix(vanilladot(), X)
+suppressWarnings(class(K) <- "matrix")
+
+
+
+objective <- Minimize(sum(do.call(rbind,sapply(1:m, FUN = function(k){quad_form(v[,k],K)})))/2  + C*sum_entries(slack))
+constraints <- list((K%*%v +  matrix(1,nrow=n,ncol =1)%*%t(b))*(Y-1) >= (1-Y)*(1 - slack),
+                    slack >= 0,
+                    sum_entries(b)*matrix(1,nrow=n) + K %*% sum_entries(v, axis = 1) == 0)
+
+LLW <- Problem(objective, constraints)
+CVXR_LLW <- solve(LLW, solver = "MOSEK")
+
+CVXR_LLW_v <- CVXR_LLW$getValue(v)
+CVXR_LLW_b <- CVXR_LLW$getValue(b)
+
+LLW_pri_opt(X,y,C=1)
+cbind(t(CVXR_LLW_v)%*%X,CVXR_LLW_b)
+res <- LLW_kernel_pri_opt(X,y,C=1, kernel = vanilladot())
+
