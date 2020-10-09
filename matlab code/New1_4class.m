@@ -28,9 +28,9 @@ cvx_begin quiet
         X3*(w3 - w1) + b3 - b1 >= 1-slack3(:,1);
         X3*(w3 - w2) + b3 - b2 >= 1-slack3(:,2);
         X3*w3 + b3 >= 1 - xi3;
-        X4*w1 + b1 <= -1 + slack4(:,1);
-        X4*w2 + b2 <= -1 + slack4(:,2);
-        X4*w3 + b3 <= -1 + slack4(:,3);
+        X4*w1 + b1 <= -0 + slack4(:,1);
+        X4*w2 + b2 <= -0 + slack4(:,2);
+        X4*w3 + b3 <= -0 + slack4(:,3);
         slack1 >= 0;
         slack2 >= 0;
         slack3 >= 0;

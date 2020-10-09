@@ -17,14 +17,35 @@ MSVM_Weak_Hard_opt <- function(X,y,type){
   if(type == "max_of_all"){
     objective <- Minimize(max(sum_squares(w2 - w1), sum_squares(w3 - w1),
                               sum_squares(w3 - w2)))
+    constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
+                        X1 %*% (w1 - w2) + b1 - b2 >= 1,
+                        X1 %*% (w1 - w3) + b1 - b3 >= 1,
+                        X2 %*% (w2 - w1) + b2 - b1 >= 1,
+                        X2 %*% (w2 - w3) + b2 - b3 >= 1,
+                        X3 %*% (w3 - w1) + b3 - b1 >= 1,
+                        X3 %*% (w3 - w2) + b3 - b2 >= 1)
   }else if(type == "max_of_sum"){
     objective <- Minimize(max(sum_squares(w2 - w1) + sum_squares(w3 - w1),
                               sum_squares(w1 - w2) + sum_squares(w3 - w2),
                               sum_squares(w1 - w3) + sum_squares(w2 - w3)))
+    constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
+                        X1 %*% (w1 - w2) + b1 - b2 >= 1,
+                        X1 %*% (w1 - w3) + b1 - b3 >= 1,
+                        X2 %*% (w2 - w1) + b2 - b1 >= 1,
+                        X2 %*% (w2 - w3) + b2 - b3 >= 1,
+                        X3 %*% (w3 - w1) + b3 - b1 >= 1,
+                        X3 %*% (w3 - w2) + b3 - b2 >= 1)
   }else if(type == "sum_of_max"){
     objective <- Minimize(sum(max(sum_squares(w2 - w1), sum_squares(w3 - w1)),
                               max(sum_squares(w1 - w2), sum_squares(w3 - w2)),
                               max(sum_squares(w1 - w3), sum_squares(w2 - w3))))
+    constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
+                        X1 %*% (w1 - w2) + b1 - b2 >= 1,
+                        X1 %*% (w1 - w3) + b1 - b3 >= 1,
+                        X2 %*% (w2 - w1) + b2 - b1 >= 1,
+                        X2 %*% (w2 - w3) + b2 - b3 >= 1,
+                        X3 %*% (w3 - w1) + b3 - b1 >= 1,
+                        X3 %*% (w3 - w2) + b3 - b2 >= 1)
   }else if(type == "Duchi"){
     objective <- Minimize(sum(sum_squares(w1), sum_squares(w2), sum_squares(w3)))
     constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
@@ -53,9 +74,27 @@ MSVM_Weak_Hard_opt <- function(X,y,type){
                               X2 %*% (w2 - w3) + b2 - b3, X3 %*% (w3 - w1) + b3 - b1, X3 %*% (w3 - w2) + b3 - b2))
     constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
                         sum(sum_squares(w1), sum_squares(w2), sum_squares(w3)) <=1)
+    
   }else if(type == "New1")
   {
-    objective <- Minimize(sum(sum_squares(w1-w3), sum_squares(w2-w3)))
+    # objective <- Minimize(sum(sum_squares(w1-w3), sum_squares(w2-w3)))
+    # constraints <- list(w1+w2+w3 == 0, b1+b2+b3 ==0,
+    #                     X1 %*% (w1 - w2) + b1 - b2 >= 1,
+    #                     X1 %*% (w1 - w3) + b1 - b3 >= 1,
+    #                     X2 %*% (w2 - w1) + b2 - b1 >= 1,
+    #                     X2 %*% (w2 - w3) + b2 - b3 >= 1,
+    #                     X3 %*% (w3 - w1) + b3 - b1 >= 1,
+    #                     X3 %*% (w3 - w2) + b3 - b2 >= 1)
+    
+    objective <- Minimize(sum(sum_squares(w1), sum_squares(w2)))
+    constraints <- list(w3 == 0, b3 ==0,
+                        X1 %*% (w1 - w2) + b1 - b2 >= 1,
+                        X1 %*% (w1 - w3) + b1 - b3 >= 1,
+                        X2 %*% (w2 - w1) + b2 - b1 >= 1,
+                        X2 %*% (w2 - w3) + b2 - b3 >= 1,
+                        X3 %*% (w3 - w1) + b3 - b1 >= 0,
+                        X3 %*% (w3 - w2) + b3 - b2 >= 0)
+    
   }
 
 

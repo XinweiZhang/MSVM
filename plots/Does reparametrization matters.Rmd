@@ -1,0 +1,1236 @@
+---
+title: "Does reparametrization matters"
+author: "Xinwei"
+date: "7/7/2020"
+output: 
+  html_document:
+     toc: true
+     toc_depth: 3  
+     theme: united
+     number_sections: true
+---
+
+```{r setup, include=FALSE}
+library(CVXR)
+library(MASS)
+library(R.matlab)
+library(e1071)
+library(kernlab)
+library(ggpubr)
+library(ggplot2)
+rm(list=ls())
+setwd("~/Desktop/Multiclass Classification/MSVM Code")
+# source("primary form functions.R")
+set.seed(123)
+
+plot_circle_boundary <- function(models, X,y, title = NULL, xlim =NULL, ylim = NULL, rule = "simple_max"){
+  X_dat <- as.data.frame(X)
+  colnames(X_dat) <- c("x","y")
+  X_dat$class <- as.factor(y)
+  if(is.null(xlim)){
+    xlim = c( floor(min(X_dat$x,X_dat$y))-.1, ceiling(max(X_dat$x,X_dat$y))+.1)
+  }
+  if(is.null(ylim)){
+    ylim = c( floor(min(X_dat$x,X_dat$y))-.1, ceiling(max(X_dat$x,X_dat$y))+.1)
+  }
+  
+  nd.r1 = seq(from = 0.85, 0.9, length.out = 30)
+  nd.r2 = seq(from = 0.7, 0.75, length.out = 30)
+  nd.r3 = seq(from = 0.55, 0.6, length.out = 30)
+  nd.r4 = seq(from = 0.4, 0.45, length.out = 30)
+  nd.r5 = seq(from = 0.25, 0.3, length.out = 30)
+  nd.theta = seq(from = 0, 2*pi, length.out = 500)
+  nd.x = cbind(cos(nd.theta), sin(nd.theta))
+  circ.theta = seq(from = 0, 2*pi, length.out = 2000)
+  circ.x = cbind(cos(circ.theta), sin(circ.theta))
+  circ.nd = as.data.frame(0.97 * circ.x)
+  colnames(circ.nd) <- c("x","y")
+  nd1 = as.data.frame(do.call(rbind,lapply(nd.r1, function(r){r*nd.x})))
+  nd2 = as.data.frame(do.call(rbind,lapply(nd.r2, function(r){r*nd.x})))
+  nd3 = as.data.frame(do.call(rbind,lapply(nd.r3, function(r){r*nd.x})))
+  nd4 = as.data.frame(do.call(rbind,lapply(nd.r4, function(r){r*nd.x})))
+  nd5 = as.data.frame(do.call(rbind,lapply(nd.r5, function(r){r*nd.x})))
+  
+  # nd1$class <- pred(as.matrix(nd1), beta[[1]], rule = rule)
+  # nd2$class <- pred(as.matrix(nd2), beta[[2]], rule = rule)
+  # nd3$class <- pred(as.matrix(nd3), beta[[3]], rule = rule)
+  # nd4$class <- pred(as.matrix(nd4), beta[[4]], rule = rule)
+  # nd5$class <- pred(as.matrix(nd5), beta[[5]], rule = rule)
+
+  nd1$class <- rep(predict(models[[1]], nd.x, rule = rule),30)
+  nd2$class <- rep(predict(models[[2]], nd.x, rule = rule),30)
+  nd3$class <- rep(predict(models[[3]], nd.x, rule = rule),30)
+  nd4$class <- rep(predict(models[[4]], nd.x, rule = rule),30)
+  nd5$class <- rep(predict(models[[5]], nd.x, rule = rule),30)
+  
+  nd <-  rbind(nd1,nd2,nd3,nd4,nd5)
+  colnames(nd) <- c("x","y","class")
+  nd$class <- as.factor(nd$class)
+  seg1 <- 0.97*data.frame(x1 = c(0,0,0), x2 = c(0,1,cos(11/10*pi)), y1 = c(0,0,0), y2 = c(1,0,sin(11/10*pi)))
+  
+  plt <- ggplot(nd, aes(x=x, y=y, color = class)) +
+    geom_point( shape = 20) +
+    geom_point(data = X_dat, size = 1) +
+    geom_point(data = circ.nd, size = .5, colour = "black") +
+    geom_segment(aes(x = x1, y = y1, xend = x2, yend = y2), data = seg1,  size = 1,linetype = 1, color="black") +
+    scale_x_continuous(limits = xlim, expand=c(0,0)) +
+    scale_y_continuous(limits = ylim, expand=c(0,0)) +
+    ggtitle(title) +  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                            panel.background = element_blank(), axis.line = element_blank(),
+                            axis.ticks = element_blank(),
+                            axis.text.x = element_blank(),
+                            axis.text.y = element_blank(),
+                            plot.title = element_text(hjust = 0.5)) + 
+    scale_color_manual(values=c("1" ="blue","2"= "green", "red"))
+  
+}
+
+
+draw_X <- function(y){
+  t <- sapply(y, function(z){
+    if(z==1){
+      runif(1, min = 0, max = 5)
+    }else if(z==2){
+      runif(1, min = 5, max = 11)
+    }else if(z==3){
+      runif(1, min = 11, max = 20)
+    }
+  })
+
+  X = t(sapply(t, function(x){c(cos(x*pi/10), sin(x*pi/10))}))
+  return(X)
+}
+
+
+plot_ridgeless_circle_boundary <- function(model, X,y, title = NULL, xlim =NULL, ylim = NULL, rule = "simple_max"){
+  X_dat <- as.data.frame(X)
+  colnames(X_dat) <- c("x","y")
+  X_dat$class <- as.factor(y)
+  if(is.null(xlim)){
+    xlim = c( floor(min(X_dat$x,X_dat$y))-.1, ceiling(max(X_dat$x,X_dat$y))+.1)
+  }
+  if(is.null(ylim)){
+    ylim = c( floor(min(X_dat$x,X_dat$y))-.1, ceiling(max(X_dat$x,X_dat$y))+.1)
+  }
+  
+  nd.r1 = seq(from = 0.5, 0.9, length.out = 100)
+
+  nd.theta = seq(from = 0, 2*pi, length.out = 500)
+  nd.x = cbind(cos(nd.theta), sin(nd.theta))
+  circ.theta = seq(from = 0, 2*pi, length.out = 2000)
+  circ.x = cbind(cos(circ.theta), sin(circ.theta))
+  circ.nd = as.data.frame(0.97 * circ.x)
+  colnames(circ.nd) <- c("x","y")
+  nd1 = as.data.frame(do.call(rbind,lapply(nd.r1, function(r){r*nd.x})))
+  
+  nd1$class <- rep(predict(model[[1]], nd.x, rule = rule),100)
+ 
+  
+  nd <-  nd1
+  colnames(nd) <- c("x","y","class")
+  nd$class <- as.factor(nd$class)
+  seg1 <- 0.97*data.frame(x1 = c(0,0,0), x2 = c(0,1,cos(11/10*pi)), y1 = c(0,0,0), y2 = c(1,0,sin(11/10*pi)))
+  
+  plt <- ggplot(nd, aes(x=x, y=y, color = class)) +
+    geom_point( shape = 20) +
+    geom_point(data = X_dat, size = 1) +
+    geom_point(data = circ.nd, size = .5, colour = "black") +
+    geom_segment(aes(x = x1, y = y1, xend = x2, yend = y2), data = seg1,  size = 1,linetype = 1, color="black") +
+    scale_x_continuous(limits = xlim, expand=c(0,0)) +
+    scale_y_continuous(limits = ylim, expand=c(0,0)) +
+    ggtitle(title) +  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+                            panel.background = element_blank(), axis.line = element_blank(),
+                            axis.ticks = element_blank(),
+                            axis.text.x = element_blank(),
+                            axis.text.y = element_blank(),
+                            plot.title = element_text(hjust = 0.5)) + 
+    scale_color_manual(values=c("1" ="blue","2"= "green", "red"))
+  
+  # suppressWarnings(print(plt))
+}
+
+
+predict.msvm <- function(model, X_test, rule = "simple_max"){
+  if(rule == "simple_max"){
+    lpred <- cbind(X_test,1)%*%t(model$beta)
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+  }else if(rule == "dagger")
+  {
+    lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
+    base_class <- attr(model, "base_class") 
+    rel_class <- setdiff(unique(model$y), base_class)
+    lpred[, -c(base_class)] <-cbind(X_test,1)%*%t(model$beta)
+    lpred[, base_class] <- 1-rowSums(sapply(rel_class, function(idx){apply(as.matrix(cbind(lpred[,idx],0)), MARGIN = 1, FUN = max)}))
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+  }else if(rule == "dagger2")
+  {
+    lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
+    base_class <- attr(model, "base_class") 
+    rel_class <- setdiff(unique(model$y), base_class)
+    lpred[, -c(base_class)] <-cbind(X_test,1)%*%t(model$beta)
+    lpred[, base_class] <- 1/2 - rowSums(sapply(rel_class, function(idx){apply(as.matrix(cbind(lpred[,idx]+1/2,0)), MARGIN = 1, FUN = max)}))
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+  }else if(rule == "dagger_MSVM7")
+  {
+    lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
+    base_class <- attr(model, "base_class") 
+    rel_class <- setdiff(unique(model$y), base_class)
+    lpred[, -c(base_class)] <-cbind(X_test,1)%*%t(model$beta)
+    lpred[, base_class] <- 1/2 - rowSums(sapply(rel_class, function(idx){apply(as.matrix(cbind(lpred[,idx]+1/2,0)), MARGIN = 1, FUN = max)}))
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+  }
+  else if(rule == "0_max"){
+    lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
+    base_class <- attr(model, "base_class") 
+    rel_idx <- setdiff(unique(model$y), base_class)
+    lpred[, -c(base_class)] <-cbind(X_test,1)%*%t(model$beta)
+    lpred[, base_class] <- 0
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+  }
+  return(y_pred)
+}
+
+
+
+New1_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, base_class = NULL){
+  
+  class_idx <- sort(unique(y))
+  m = length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+  }
+  rel_class <- class_idx[class_idx!=base_class]
+  n <- nrow(X)
+  X_p1 <- X[y!=base_class,,drop = F]
+  X_p2 <- X[y==base_class,,drop = F]
+  n_p1 <- nrow(X_p1)
+  n_p2 <- nrow(X_p2)
+  y_p1 <- y[y!=base_class]
+  Y_p1 <- sapply(rel_class, function(id){y_p1==id})
+  
+  p <- ncol(X)
+  w <- Variable(rows = m-1, cols = p)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
+  
+  slack_p1 <- Variable(rows = n_p1, cols = m-1)
+  slack_p2 <- Variable(rows = n_p2, cols = m-1)
+  epsilon_p1 <- Variable(n_p1)
+  t <- Variable(n_p1*(m-1))
+  u <- Variable(rows = n_p1*(m-1), cols = m-1)
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  constraints <- list(((X_p1%*%t(w) + matrix(1, nrow = n_p1,ncol = 1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= 1-slack_p1,
+                      vec(t(epsilon_p1%*%matrix(1, ncol = m-1))) >= t + sum_entries(rep(1/seq(1, m-1), n_p1)%*%matrix(1, ncol = m-1)*u, axis=1) - rep(1/seq(1,m-1),n_p1),
+                      t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-1))%*%slack_p1,
+                      u>=0,
+                      sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1-epsilon_p1,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= slack_p2,
+                      slack_p1 >=0,
+                      slack_p2 >=0)
+  
+  New1 <- Problem(objective, constraints)
+  CVXR_New1 <- solve(New1, solver = "MOSEK")
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_New1$getValue(w),CVXR_New1$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_New1$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
+}
+
+
+New1_pri_opt_R <- function(X, y, C = 1, lambda = 1, intercept = T, base_class = NULL){
+  
+  class_idx <- sort(unique(y))
+  m = length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+  }
+  rel_class <- class_idx[class_idx!=base_class]
+  n <- nrow(X)
+  X_p1 <- X[y!=base_class,,drop = F]
+  X_p2 <- X[y==base_class,,drop = F]
+  n_p1 <- nrow(X_p1)
+  n_p2 <- nrow(X_p2)
+  y_p1 <- y[y!=base_class]
+  Y_p1 <- sapply(rel_class, function(id){y_p1==id})
+  
+  p <- ncol(X)
+  w <- Variable(rows = m-1, cols = p)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
+  
+  slack_p1 <- Variable(rows = n_p1, cols = m-1)
+  slack_p2 <- Variable(rows = n_p2, cols = m-1)
+  epsilon_p1 <- Variable(n_p1)
+  t <- Variable(n_p1*(m-1))
+  u <- Variable(rows = n_p1*(m-1), cols = m-1)
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  constraints <- list(((X_p1%*%t(w) + matrix(1, nrow = n_p1,ncol = 1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= 1-slack_p1,
+                      vec(t(epsilon_p1%*%matrix(1, ncol = m-1))) >= t + sum_entries(rep(1/seq(1, m-1), n_p1)%*%matrix(1, ncol = m-1)*u, axis=1) - rep(1/seq(1,m-1),n_p1),
+                      t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-1))%*%slack_p1,
+                      u>=0,
+                      sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1/2 - epsilon_p1,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= -1/2 + slack_p2,
+                      slack_p1 >=0,
+                      slack_p2 >=0)
+  
+  New1 <- Problem(objective, constraints)
+  CVXR_New1 <- solve(New1, solver = "MOSEK")
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_New1$getValue(w),CVXR_New1$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_New1$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
+}
+
+
+New3_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, base_class = NULL){
+  
+  
+  class_idx <- sort(unique(y))
+  m = length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+  }
+  rel_class <- class_idx[class_idx!=base_class]
+  n <- nrow(X)
+  X_p1 <- X[y!=base_class,,drop = F]
+  X_p2 <- X[y==base_class,,drop = F]
+  n_p1 <- nrow(X_p1)
+  n_p2 <- nrow(X_p2)
+  y_p1 <- y[y!=base_class]
+  Y_p1 <- sapply(rel_class, function(id){y_p1==id})
+  
+  p <- ncol(X)
+  w <- Variable(rows = m-1, cols = p)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
+  
+  slack_p1 <- Variable(rows = n_p1, cols = m-1)
+  slack_p2 <- Variable(rows = n_p2, cols = m-1)
+  epsilon_p1 <- Variable(n_p1)
+  t <- Variable(n_p1*(m-2))
+  u <- Variable(rows = n_p1*(m-2), cols = m-1)
+  
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  constraints <- list(((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= (1-Y_p1)*(1-slack_p1),
+                      vec(t(epsilon_p1%*%matrix(1,ncol=m-2))) >=  rep(seq(1,m-2),n_p1)/rep(seq(2,m-1),n_p1)*t + 1/rep(seq(2,m-1),n_p1)*sum_entries(u,axis=1),
+                      t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-2))%*%slack_p1,
+                      u>=0,
+                      sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1-epsilon_p1,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= 0 + slack_p2,
+                      slack_p1 >=0,
+                      slack_p2 >=0)
+  
+  
+  New3 <- Problem(objective, constraints)
+  CVXR_New3 <- solve(New3, solver = "MOSEK")
+  
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_New3$getValue(w),CVXR_New3$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_New3$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
+}
+
+
+
+New3_pri_opt_R <- function(X, y, C = 1, lambda = 1, intercept = T, base_class = NULL){
+  
+  
+  class_idx <- sort(unique(y))
+  m = length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+  }
+  rel_class <- class_idx[class_idx!=base_class]
+  n <- nrow(X)
+  X_p1 <- X[y!=base_class,,drop = F]
+  X_p2 <- X[y==base_class,,drop = F]
+  n_p1 <- nrow(X_p1)
+  n_p2 <- nrow(X_p2)
+  y_p1 <- y[y!=base_class]
+  Y_p1 <- sapply(rel_class, function(id){y_p1==id})
+  
+  p <- ncol(X)
+  w <- Variable(rows = m-1, cols = p)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
+  
+  slack_p1 <- Variable(rows = n_p1, cols = m-1)
+  slack_p2 <- Variable(rows = n_p2, cols = m-1)
+  epsilon_p1 <- Variable(n_p1)
+  t <- Variable(n_p1*(m-2))
+  u <- Variable(rows = n_p1*(m-2), cols = m-1)
+  
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  constraints <- list(((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= (1-Y_p1)*(1-slack_p1),
+                      vec(t(epsilon_p1%*%matrix(1,ncol=m-2))) >=  rep(seq(1,m-2),n_p1)/rep(seq(2,m-1),n_p1)*t + 1/rep(seq(2,m-1),n_p1)*sum_entries(u,axis=1),
+                      t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-2))%*%slack_p1,
+                      u>=0,
+                      sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1/2-epsilon_p1,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= -1/2 + slack_p2,
+                      slack_p1 >=0,
+                      slack_p2 >=0)
+  
+  
+  New3 <- Problem(objective, constraints)
+  CVXR_New3 <- solve(New3, solver = "MOSEK")
+  
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_New3$getValue(w),CVXR_New3$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_New3$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
+}
+
+
+MSVM8_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T){
+  
+  class_idx <- sort(unique(y))
+  Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+  n <- nrow(X)
+  p <- ncol(X)
+  m <- length(class_idx)
+  
+  w <- Variable(rows = m, cols = p)
+  if(intercept == T){
+    b <- Variable(m)
+  }else{
+    b <- rep(0,m)
+  }
+  slack <- Variable(rows = n, cols = m)
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
+  
+  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(0 - slack),
+                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=1 - sum_entries(slack, axis=1),
+                      slack >=0)
+  
+  MSVM8 <- Problem(objective, constraints)
+  CVXR_MSVM8 <- solve(MSVM8, solver = "MOSEK")
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_MSVM8$getValue(w),CVXR_MSVM8$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_MSVM8$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    return(fit)
+  }
+}
+
+
+MSVM8_pri_opt_R <- function(X, y, C = 1, lambda = 1, intercept = T){
+  
+  class_idx <- sort(unique(y))
+  Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+  n <- nrow(X)
+  p <- ncol(X)
+  m <- length(class_idx)
+  
+  w <- Variable(rows = m, cols = p)
+  if(intercept == T){
+    b <- Variable(m)
+  }else{
+    b <- rep(0,m)
+  }
+  slack <- Variable(rows = n, cols = m)
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
+  
+  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(1 - slack),
+                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=1 - sum_entries(slack, axis=1),
+                      slack >=0)
+  
+  MSVM8 <- Problem(objective, constraints)
+  CVXR_MSVM8 <- solve(MSVM8, solver = "MOSEK")
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_MSVM8$getValue(w),CVXR_MSVM8$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_MSVM8$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    return(fit)
+  }
+}
+
+
+MSVM7_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T,  base_class = NULL){
+  class_idx <- sort(unique(y))
+  m <- length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+    Y <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y==id)})
+  }else{
+    Y <- sapply(class_idx[class_idx!=base_class], function(id){as.numeric(y==id)})
+  }
+  
+  n <- nrow(X)
+  p <- ncol(X)
+  w <- Variable(rows = m-1, cols = p)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
+  slack <- Variable(rows = n, cols = m-1)
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
+  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(0 - slack),
+                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >= (1 - sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
+                      slack >=0)
+  
+  MSVM7 <- Problem(objective, constraints)
+  CVXR_MSVM7 <- solve(MSVM7, solver = "MOSEK")
+  
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_MSVM7$getValue(w),CVXR_MSVM7$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_MSVM7$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
+}
+
+
+MSVM7_pri_opt_R <- function(X, y, C = 1, lambda = 1, intercept = T,  base_class = NULL){
+  class_idx <- sort(unique(y))
+  m <- length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+    Y <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y==id)})
+  }else{
+    Y <- sapply(class_idx[class_idx!=base_class], function(id){as.numeric(y==id)})
+  }
+  
+  n <- nrow(X)
+  p <- ncol(X)
+  w <- Variable(rows = m-1, cols = p)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
+  slack <- Variable(rows = n, cols = m-1)
+  
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
+  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(1/2 - slack),
+                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >= (1/2 - sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
+                      slack >=0)
+  
+  MSVM7 <- Problem(objective, constraints)
+  CVXR_MSVM7 <- solve(MSVM7, solver = "MOSEK")
+  
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_MSVM7$getValue(w),CVXR_MSVM7$getValue(b)), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_MSVM7$getValue(w),0), X = X, y = y)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
+}
+```
+
+
+# Noiseless Circle
+## Random Example 1
+```{r fig.width = 6, fig.height = 24, echo = F}
+n = 100
+set.seed(1)
+y <- sample(c(1,2,3), size = n, replace = T)
+X <- draw_X(y)
+C_list <- 10^seq(4,0)
+
+table(y)
+
+g1.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 1)}), X, y, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 2)}), X, y, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 3)}), X, y, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 1)}), X, y, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 2)}), X, y, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 3)}), X, y, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+
+g9.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "MSVM7,base3,dagger", rule = "dagger")
+
+
+g12.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+
+g13.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM8")
+g13.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+       
+
+```
+
+## Random Example 2
+```{r fig.width = 6, fig.height = 24, echo = F}
+n = 100
+set.seed(2)
+y <- sample(c(1,2,3), size = n, replace = T)
+X <- draw_X(y)
+C_list <- 10^seq(4,0)
+
+table(y)
+
+g1.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 1)}), X, y, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 2)}), X, y, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 3)}), X, y, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 1)}), X, y, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 2)}), X, y, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 3)}), X, y, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+g9.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "MSVM7,base3,dagger", rule = "dagger")
+
+
+g12.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+g13.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM8")
+g13.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+
+
+```
+
+## Random Example 3
+```{r fig.width = 6, fig.height = 24, echo = F}
+n = 100
+set.seed(3)
+y <- sample(c(1,2,3), size = n, replace = T)
+X <- draw_X(y)
+C_list <- 10^seq(4,0)
+
+table(y)
+
+g1.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 1)}), X, y, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 2)}), X, y, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F,base_class = 3)}), X, y, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 1)}), X, y, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 2)}), X, y, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F,base_class = 3)}), X, y, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y,C,intercept = F)}), X, y, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+g9.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 1)}), X, y, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 2)}), X, y, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y,C,intercept = F, base_class = 3)}), X, y, title = "MSVM7,base3,dagger", rule = "dagger")
+
+g12.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 1)}), X, y, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 2)}), X, y, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y,C,intercept = F, base_class = 3)}), X, y, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+g13.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt(X,y,C,intercept = F)}), X, y, title = "MSVM8")
+g13.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt_R(X,y,C,intercept = F)}), X, y, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+
+```
+
+
+
+
+# Noise Circle
+## Random Example 1
+### ridge
+
+```{r fig.width = 6, fig.height = 24, echo = F}
+set.seed(1)
+n <- 500
+y <- sample(c(1,2,3), size = n, replace = T)
+X <- draw_X(y)
+generate_noise_y <- function(y){
+  idx <- sample(length(y), size = length(y)*0.9, replace = F)
+  y_fake <- sample(c(1,2,3), size = length(idx), replace = T)
+  y[idx] <- y_fake
+  return(y)
+}
+
+
+y_noise <- generate_noise_y(y)
+table(y_noise)
+
+C_list <- 10^seq(0,-4)
+g1.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 1)}), X, y_noise, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 2)}), X, y_noise, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 3)}), X, y_noise, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 1)}), X, y_noise, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 2)}), X, y_noise, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 3)}), X, y_noise, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+
+g9.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7,base3,dagger", rule = "dagger")
+
+
+g12.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+
+g13.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM8")
+g13.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+       
+
+```
+
+### ridgeless
+```{r fig.width = 6, fig.height = 24, echo = F}
+
+lambda_list = 0 
+g1.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 1)}), X, y_noise, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 2)}), X, y_noise, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 3)}), X, y_noise, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 1)}), X, y_noise, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 2)}), X, y_noise, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 3)}), X, y_noise, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+
+g9.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7,base3,dagger", rule = "dagger")
+
+
+g12.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+
+g13.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM8_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM8")
+g13.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM8_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+       
+
+```
+
+## Random Example 2
+### ridge
+
+```{r fig.width = 6, fig.height = 24, echo = F}
+set.seed(2)
+n <- 500
+y <- sample(c(1,2,3), size = n, replace = T)
+X <- draw_X(y)
+generate_noise_y <- function(y){
+  idx <- sample(length(y), size = length(y)*0.9, replace = F)
+  y_fake <- sample(c(1,2,3), size = length(idx), replace = T)
+  y[idx] <- y_fake
+  return(y)
+}
+
+
+y_noise <- generate_noise_y(y)
+table(y_noise)
+
+C_list <- 10^seq(0,-4)
+g1.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 1)}), X, y_noise, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 2)}), X, y_noise, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 3)}), X, y_noise, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 1)}), X, y_noise, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 2)}), X, y_noise, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 3)}), X, y_noise, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+g9.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7,base3,dagger", rule = "dagger")
+
+g12.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+g13.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM8")
+g13.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+
+```
+
+
+### ridgeless
+```{r fig.width = 6, fig.height = 24, echo = F}
+
+lambda_list = 0 
+g1.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 1)}), X, y_noise, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 2)}), X, y_noise, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 3)}), X, y_noise, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 1)}), X, y_noise, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 2)}), X, y_noise, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 3)}), X, y_noise, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+
+g9.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7,base3,dagger", rule = "dagger")
+
+
+g12.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+
+g13.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM8_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM8")
+g13.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM8_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+       
+
+```
+
+## Random Example 3
+### ridge
+
+```{r fig.width = 6, fig.height = 24, echo = F}
+set.seed(3)
+n <- 500
+y <- sample(c(1,2,3), size = n, replace = T)
+X <- draw_X(y)
+generate_noise_y <- function(y){
+  idx <- sample(length(y), size = length(y)*0.9, replace = F)
+  y_fake <- sample(c(1,2,3), size = length(idx), replace = T)
+  y[idx] <- y_fake
+  return(y)
+}
+
+
+y_noise <- generate_noise_y(y)
+table(y_noise)
+
+C_list <- 10^seq(0,-4)
+g1.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_circle_boundary(lapply(C_list, function(C){New1_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 1)}), X, y_noise, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 2)}), X, y_noise, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F,base_class = 3)}), X, y_noise, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 1)}), X, y_noise, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 2)}), X, y_noise, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F,base_class = 3)}), X, y_noise, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_circle_boundary(lapply(C_list, function(C){New3_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+g9.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7,base3,dagger", rule = "dagger")
+
+g12.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_circle_boundary(lapply(C_list, function(C){MSVM7_pri_opt_R(X,y_noise,C,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+g13.1 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM8")
+g13.2 <- plot_circle_boundary(lapply(C_list, function(C){MSVM8_pri_opt_R(X,y_noise,C,intercept = F)}), X, y_noise, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+
+```
+
+
+### ridgeless
+```{r fig.width = 6, fig.height = 24, echo = F}
+
+lambda_list = 0 
+g1.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,0", rule = "0_max")
+g1.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,0", rule = "0_max")
+g1.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,0", rule = "0_max")
+
+g2.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,0", rule = "0_max")
+g2.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,0", rule = "0_max")
+g2.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,0", rule = "0_max")
+g3.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1,base1,dagger", rule = "dagger")
+g3.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1,base2,dagger", rule = "dagger")
+g3.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1,base3,dagger", rule = "dagger")
+
+g4.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "New1_R,base1,dagger", rule = "dagger2")
+g4.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "New1_R,base2,dagger", rule = "dagger2")
+g4.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New1_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "New1_R,base3,dagger", rule = "dagger2")
+
+g5.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 1)}), X, y_noise, title = "New3,base1,0", rule = "0_max")
+g5.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 2)}), X, y_noise, title = "New3,base2,0", rule = "0_max")
+g5.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 3)}), X, y_noise, title = "New3,base3,0", rule = "0_max")
+g6.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 1)}), X, y_noise, title = "New3_R,base1,0", rule = "0_max")
+g6.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 2)}), X, y_noise, title = "New3_R,base2,0", rule = "0_max")
+g6.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F,base_class = 3)}), X, y_noise, title = "New3_R,base3,0", rule = "0_max")
+
+g7.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base1,dagger", rule = "dagger")
+g7.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base2,dagger", rule = "dagger")
+g7.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3,base3,dagger", rule = "dagger")
+
+
+g8.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base1,dagger", rule = "dagger2")
+g8.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base2,dagger", rule = "dagger2")
+g8.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){New3_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "New3_R,base3,dagger", rule = "dagger2")
+
+
+
+g9.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base1,0", rule = "0_max")
+g9.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base2,0", rule = "0_max")
+g9.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7,base3,0", rule = "0_max")
+
+
+g10.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base1,0", rule = "0_max")
+g10.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base2,0", rule = "0_max")
+g10.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM7_R,base3,0", rule = "0_max")
+
+g11.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7,base1,dagger", rule = "dagger")
+g11.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7,base2,dagger", rule = "dagger")
+g11.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7,base3,dagger", rule = "dagger")
+
+
+g12.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 1)}), X, y_noise, title = "MSVM7_R,base1,dagger", rule = "dagger2")
+g12.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 2)}), X, y_noise, title = "MSVM7_R,base2,dagger", rule = "dagger2")
+g12.3 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM7_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F, base_class = 3)}), X, y_noise, title = "MSVM7_R,base3,dagger", rule = "dagger2")
+
+
+g13.1 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM8_pri_opt(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM8")
+g13.2 <- plot_ridgeless_circle_boundary(lapply(lambda_list, function(lambda){MSVM8_pri_opt_R(X,y_noise,C=1,lambda=lambda,intercept = F)}), X, y_noise, title = "MSVM8_R")
+g13.3 <- NULL
+
+
+ggarrange(g1.1, g1.2, g1.3,g2.1,g2.2,g2.3,g3.1,g3.2,g3.3,g4.1,g4.2,g4.3,g5.1,g5.2,g5.3,g6.1,g6.2,g6.3,g7.1, g7.2,g7.3,g8.1,g8.2,g8.3,g9.1,g9.2,g9.3,g10.1,g10.2,g10.3,g11.1,g11.2,g11.3,g12.1,g12.2,g12.3,g13.1,g13.2,g13.3, ncol=3, nrow=13, common.legend = TRUE, legend="bottom")
+       
+
+```

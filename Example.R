@@ -13,15 +13,16 @@ source("Dual form functions.R")
 X = rbind(c(-3,5),c(-4,-1),c(2,-2),c(5,4))
 y = c(1,2,3,4)
 C = 20
+
 plot_nearest_neighbour_decision_boundary(X, y, dis = "L2", title = "Nearest Neighbour in L2")
 plot_nearest_neighbour_decision_boundary(X, y, dis = "L1", title = "Nearest Neighbour in L1")
 plot_decision_boundary(X,y,beta = WW_pri_opt(X,y,C), title = "WW")
 plot_decision_boundary(X,y,beta = CS_pri_opt(X,y,C), title = "CS")
 plot_decision_boundary(X,y,beta = Duchi_pri_opt(X,y,C), title = "Duchi")
 plot_decision_boundary(X,y,beta = MDuchi_pri_opt(X,y,C), title = "Mduchi")
-plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "New1, 0", dagger_rule = F)
-plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "New1, dagger", dagger_rule = T)
-plot_decision_boundary(X,y,beta = New3_pri_opt(X,y,C), title = "New3, 0", dagger_rule = F)
+plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "New1, 0", rule = "0_max")
+plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "New1, dagger", rule = "dagger")
+plot_decision_boundary(X,y,beta = New3_pri_opt(X,y,C), title = "New3, 0", rule = "0_max")
 plot_decision_boundary(X,y,beta = OVA_pri_opt(X,y,C), title = "OVA")
 # debugonce(plot_decision_boundary)
 plot_decision_boundary(X,y,beta = LLW_pri_opt(X,y,C), title = "LLW", xlim=c(-30,30),  ylim=c(-30,30))
@@ -54,7 +55,10 @@ b <- beta[,3]
 # coef(fit)
 
 # beta <- cbind(w,b)
+
 plot_decision_boundary(X,y,beta = WW_pri_opt(X,y,C), title = "WW")
+plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "WW", rule ="dagger", xlim = c(-4,4))
+
 # dev.off()
 plot_decision_boundary(X,y,beta = beta, title = "WW")
 
@@ -72,11 +76,11 @@ beta = WW_pri_opt(X,y,C)
 
 
 plot_decision_boundary(X,y,beta = Duchi_dual_opt(X,y,C), title = "WW")
-
 plot_decision_boundary(X,y,beta = CS_pri_opt(X,y,C), title = "CS")
 plot_decision_boundary(X,y,beta = Duchi_pri_opt(X,y,C), title = "Duchi")
 plot_decision_boundary(X,y,beta = MDuchi_pri_opt(X,y,C), title = "Mduchi")
-plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "New1", dagger_rule = F)
+plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "New1", rule = "dagger")
+plot_decision_boundary(X,y,beta = New1_pri_opt(X,y,C), title = "New1", rule = "0_max")
 
 
 X = rbind(c(-2,1),c(-2,-1),c(2,1),c(2,-2))

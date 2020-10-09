@@ -1,4 +1,5 @@
-WW_pri_opt <- function(X,y,C){
+library(ggplot2)
+WW_pri_opt <- function(X,y,C = 1, lambda = 1, intercept = T){
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
   n <- nrow(X)
@@ -6,9 +7,13 @@ WW_pri_opt <- function(X,y,C){
   m <- length(class_idx)
   
   w <- Variable(rows = m, cols = p)
-  b <- Variable(m)
+  if(intercept == T){
+    b <- Variable(m)
+  }else{
+    b <- rep(0,m)
+  }
   slack <- Variable(rows = n, cols = m)
-  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries((1-Y)*slack))
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries((1-Y)*slack))
   
   constraints <- list( sum_entries(b) == 0,
                        sum_entries(w, axis = 2) ==0,
@@ -18,10 +23,18 @@ WW_pri_opt <- function(X,y,C){
   WW <- Problem(objective, constraints)
   CVXR_WW <- solve(WW, solver = "MOSEK")
   
-  return(cbind(CVXR_WW$getValue(w),CVXR_WW$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_WW$getValue(w),CVXR_WW$getValue(b)), X = X, y = y, value = CVXR_WW$value, status = CVXR_WW$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_WW$getValue(w),0), X = X, y = y, value = CVXR_WW$value, status = CVXR_WW$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }
 }
 
-CS_pri_opt <- function(X,y,C){
+CS_pri_opt <- function(X,y,C = 1, lambda = 1, intercept = T){
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
   n <- nrow(X)
@@ -29,9 +42,13 @@ CS_pri_opt <- function(X,y,C){
   m <- length(class_idx)
   
   w <- Variable(rows = m, cols = p)
-  b <- Variable(m)
+  if(intercept == T){
+    b <- Variable(m)
+  }else{
+    b <- rep(0,m)
+  }
   slack <- Variable(rows = n, cols = m)
-  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(max_entries((1-Y)*slack, axis = 1)))
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(max_entries((1-Y)*slack, axis = 1)))
   
   constraints <- list( sum_entries(b) == 0,
                        sum_entries(w, axis = 2) ==0,
@@ -41,12 +58,20 @@ CS_pri_opt <- function(X,y,C){
   CS <- Problem(objective, constraints)
   CVXR_CS <- solve(CS, solver = "MOSEK")
   
-  return(cbind(CVXR_CS$getValue(w),CVXR_CS$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_CS$getValue(w),CVXR_CS$getValue(b)), X = X, y = y, value = CVXR_CS$value, status = CVXR_CS$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_CS$getValue(w),0), X = X, y = y, value = CVXR_CS$value, status = CVXR_CS$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }
 }
 
 
 
-Duchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
+Duchi_pri_opt <- function(X,y,C = 1, lambda = 1, intercept = T, intercept_only = F, w = NULL){
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
   n <- nrow(X)
@@ -54,13 +79,17 @@ Duchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
   m <- length(class_idx)
   if(intercept_only == F){
     w <- Variable(rows = m, cols = p)
-    b <- Variable(m)
+    if(intercept == T){
+      b <- Variable(m)
+    }else{
+      b <- rep(0,m)
+    }
     slack <- Variable(rows = n, cols = m)
     epsilon <- Variable(n)
     t <- Variable(n*m)
     u <- Variable(rows = n*m, cols = m)
     
-    objective <- Minimize(sum_squares(w)/2 +  C*sum(epsilon))
+    objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum(epsilon))
     constraints <- list( sum_entries(b) == 0,
                          sum_entries(w, axis = 2) ==0,
                          ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= 1-slack,
@@ -72,7 +101,15 @@ Duchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
     Duchi <- Problem(objective, constraints)
     CVXR_Duchi <- solve(Duchi, solver = "MOSEK")
     
-    return( cbind(CVXR_Duchi$getValue(w), CVXR_Duchi$getValue(b)))
+    if(intercept == T){
+      fit <- list(beta = cbind(CVXR_Duchi$getValue(w),CVXR_Duchi$getValue(b)), X = X, y = y, value = CVXR_Duchi$value, status = CVXR_Duchi$status)
+      class(fit) <- "msvm"
+      return(fit)
+    }else{  
+      fit <- list(beta = cbind(CVXR_Duchi$getValue(w),0), X = X, y = y, value = CVXR_Duchi$value, status = CVXR_Duchi$status)
+      class(fit) <- "msvm"
+      return(fit)
+    }
   }else{
     b <- Variable(m)
     slack <- Variable(rows = n, cols = m)
@@ -94,7 +131,7 @@ Duchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
   }
 }
 
-MDuchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
+MDuchi_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, intercept_only = F, w = NULL){
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
   n <- nrow(X)
@@ -102,13 +139,17 @@ MDuchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
   m <- length(class_idx)
   if(intercept_only == F){
     w <- Variable(rows = m, cols = p)
-    b <- Variable(m)
+    if(intercept == T){
+      b <- Variable(m)
+    }else{
+      b <- rep(0,m)
+    }
     slack <- Variable(rows = n, cols = m)
     epsilon <- Variable(n)
     t <- Variable(n*(m-1))
     u <- Variable(rows = n*(m-1), cols = m)
   
-    objective <- Minimize(sum_squares(w)/2 +  C*sum(epsilon))
+    objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum(epsilon))
     constraints <- list( sum_entries(b) == 0,
                          sum_entries(w, axis = 2) ==0,
                          ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= (1-Y)*(1-slack),
@@ -118,8 +159,16 @@ MDuchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
                          slack >=0)
     
     M_Duchi <- Problem(objective, constraints)
-      CVXR_M_Duchi <- solve(M_Duchi, solver = "MOSEK")
-  return( cbind(CVXR_M_Duchi$getValue(w), CVXR_M_Duchi$getValue(b)))
+    CVXR_M_Duchi <- solve(M_Duchi, solver = "MOSEK")
+    if(intercept == T){
+      fit <- list(beta = cbind(CVXR_M_Duchi$getValue(w),CVXR_M_Duchi$getValue(b)), X = X, y = y, value = CVXR_M_Duchi$value, status = CVXR_M_Duchi$status)
+      class(fit) <- "msvm"
+      return(fit)
+    }else{  
+      fit <- list(beta = cbind(CVXR_M_Duchi$getValue(w),0), X = X, y = y, value = CVXR_M_Duchi$value, status = CVXR_M_Duchi$status)
+      class(fit) <- "msvm"
+      return(fit)
+    }
   }else{
     b <- Variable(m)
     slack <- Variable(rows = n, cols = m)
@@ -143,7 +192,7 @@ MDuchi_pri_opt <- function(X,y,C, intercept_only = F, w = NULL){
 }
 
 
-OVA_pri_opt <- function(X,y,C){
+OVA_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T){
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
   n <- nrow(X)
@@ -151,21 +200,32 @@ OVA_pri_opt <- function(X,y,C){
   m <- length(class_idx)
   
   w <- Variable(rows = m, cols = p)
-  b <- Variable(rows = m)
+  if(intercept == T){
+    b <- Variable(m)
+  }else{
+    b <- rep(0,m)
+  }
   slack <- Variable(rows = n, cols = m)
   
-  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
   constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (2*Y-1)) >=1- slack,
                       slack >=0)
   
   OVA <- Problem(objective, constraints)
   CVXR_OVA <- solve(OVA, solver="MOSEK")
-
-  return(cbind(CVXR_OVA$getValue(w),CVXR_OVA$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_OVA$getValue(w),CVXR_OVA$getValue(b)), X = X, y = y, value = CVXR_OVA$value, status = CVXR_OVA$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_OVA$getValue(w),0), X = X, y = y, value = CVXR_OVA$value, status = CVXR_OVA$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }
 }
 
 
-LLW_pri_opt <- function(X,y,C){
+LLW_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T){
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
   n <- nrow(X)
@@ -173,10 +233,14 @@ LLW_pri_opt <- function(X,y,C){
   m <- length(class_idx)
   
   w <- Variable(rows = m, cols = p)
-  b <- Variable(rows = m)
+  if(intercept == T){
+    b <- Variable(m)
+  }else{
+    b <- rep(0,m)
+  }
   slack <- Variable(rows = n, cols = m)
   
-  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
   
   constraints <- list(sum_entries(b) == 0,
                       sum_entries(w, axis = 2) ==0,
@@ -186,14 +250,23 @@ LLW_pri_opt <- function(X,y,C){
   LLW <- Problem(objective, constraints)
   CVXR_LLW <- solve(LLW)
   
-  return(cbind(CVXR_LLW$getValue(w),CVXR_LLW$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_LLW$getValue(w),CVXR_LLW$getValue(b)), X = X, y = y, value = CVXR_LLW$value, status = CVXR_LLW$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_LLW$getValue(w),0), X = X, y = y, value = CVXR_LLW$value, status = CVXR_LLW$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }
 }
 
 
-MSVM7_pri_opt <- function(X,y,C, base_class = NULL){
+MSVM7_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T,  base_class = NULL){
   class_idx <- sort(unique(y))
   m <- length(class_idx)
   if(is.null(base_class)){
+    base_class <- m
     Y <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y==id)})
   }else{
     Y <- sapply(class_idx[class_idx!=base_class], function(id){as.numeric(y==id)})
@@ -202,23 +275,37 @@ MSVM7_pri_opt <- function(X,y,C, base_class = NULL){
   n <- nrow(X)
   p <- ncol(X)
   w <- Variable(rows = m-1, cols = p)
-  b <- Variable(rows = m-1)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
   slack <- Variable(rows = n, cols = m-1)
   
-  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
   constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(0 - slack),
-                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=(1 - sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
+                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >= (1 - sum_entries(slack, axis=1))*sum_entries(Y,axis=1),
                       slack >=0)
   
   MSVM7 <- Problem(objective, constraints)
   CVXR_MSVM7 <- solve(MSVM7, solver = "MOSEK")
   
-  return(cbind(CVXR_MSVM7$getValue(w),CVXR_MSVM7$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_MSVM7$getValue(w),CVXR_MSVM7$getValue(b)), X = X, y = y, value = CVXR_MSVM7$value, status = CVXR_MSVM7$status)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_MSVM7$getValue(w),0), X = X, y = y, value = CVXR_MSVM7$value, status = CVXR_MSVM7$status)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
 }
 
 
 
-MSVM8_pri_opt <- function(X,y,C){
+  MSVM8_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T){
   
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
@@ -227,35 +314,56 @@ MSVM8_pri_opt <- function(X,y,C){
   m <- length(class_idx)
   
   w <- Variable(rows = m, cols = p)
-  b <- Variable(rows = m)
+  if(intercept == T){
+    b <- Variable(m)
+  }else{
+    b <- rep(0,m)
+  }
   slack <- Variable(rows = n, cols = m)
   
-  objective <- Minimize(sum_squares(w)/2 +  C*sum_entries(slack))
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum_entries(slack))
   
-  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(1- slack),
-                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >=1- sum_entries(slack, axis=1),
+  constraints <- list(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * (Y-1)) >=(1-Y)*(1 - slack),
+                      sum_entries(((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) * Y), axis=1) >= 1 - sum_entries(slack, axis=1),
                       slack >=0)
   
   MSVM8 <- Problem(objective, constraints)
   CVXR_MSVM8 <- solve(MSVM8, solver = "MOSEK")
-  
-  return(cbind(CVXR_MSVM8$getValue(w),CVXR_MSVM8$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_MSVM8$getValue(w),CVXR_MSVM8$getValue(b)), X = X, y = y, value = CVXR_MSVM8$value, status = CVXR_MSVM8$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_MSVM8$getValue(w),0), X = X, y = y, value = CVXR_MSVM8$value, status = CVXR_MSVM8$status)
+    class(fit) <- "msvm"
+    return(fit)
+  }
 }
 
 
-New1_pri_opt <- function(X,y,C){
+New1_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, base_class = NULL){
   
   class_idx <- sort(unique(y))
   m = length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+  }
+  rel_class <- class_idx[class_idx!=base_class]
   n <- nrow(X)
-  X_p1 <- X[y!=class_idx[m],,drop = F]
-  X_p2 <- X[y==class_idx[m],,drop = F]
+  X_p1 <- X[y!=base_class,,drop = F]
+  X_p2 <- X[y==base_class,,drop = F]
   n_p1 <- nrow(X_p1)
   n_p2 <- nrow(X_p2)
-  Y_p1 <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y[1:n_p1]==id)})
+  y_p1 <- y[y!=base_class]
+  Y_p1 <- sapply(rel_class, function(id){y_p1==id})
+  
   p <- ncol(X)
   w <- Variable(rows = m-1, cols = p)
-  b <- Variable(m-1)
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
   
   slack_p1 <- Variable(rows = n_p1, cols = m-1)
   slack_p2 <- Variable(rows = n_p2, cols = m-1)
@@ -263,37 +371,56 @@ New1_pri_opt <- function(X,y,C){
   t <- Variable(n_p1*(m-1))
   u <- Variable(rows = n_p1*(m-1), cols = m-1)
   
-  objective <- Minimize(sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
-  constraints <- list(((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= 1-slack_p1,
-                      vec(t(epsilon_p1%*%matrix(1,ncol=m-1))) >= t + sum_entries(rep(1/seq(1,m-1),n_p1)%*%matrix(1,ncol = m-1)*u,axis=1) - rep(1/seq(1,m-1),n_p1),
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  constraints <- list(((X_p1%*%t(w) + matrix(1, nrow = n_p1,ncol = 1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= 1-slack_p1,
+                      vec(t(epsilon_p1%*%matrix(1, ncol = m-1))) >= t + sum_entries(rep(1/seq(1, m-1), n_p1)%*%matrix(1, ncol = m-1)*u, axis=1) - rep(1/seq(1,m-1),n_p1),
                       t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-1))%*%slack_p1,
                       u>=0,
                       sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1-epsilon_p1,
-                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= -1 + slack_p2,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= 0 + slack_p2,
                       slack_p1 >=0,
                       slack_p2 >=0)
   
   New1 <- Problem(objective, constraints)
   CVXR_New1 <- solve(New1, solver = "MOSEK")
-    
-  return(cbind(CVXR_New1$getValue(w),CVXR_New1$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_New1$getValue(w),CVXR_New1$getValue(b)), X = X, y = y, value = CVXR_New1$value, status = CVXR_New1$status)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_New1$getValue(w),0), X = X, y = y, value = CVXR_New1$value, status = CVXR_New1$status)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
 }
 
 
-New3_pri_opt <- function(X,y,C){
+New3_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, base_class = NULL){
+  
   
   class_idx <- sort(unique(y))
   m = length(class_idx)
+  if(is.null(base_class)){
+    base_class <- m
+  }
+  rel_class <- class_idx[class_idx!=base_class]
   n <- nrow(X)
-  X_p1 <- X[y!=class_idx[m],,drop = F]
-  X_p2 <- X[y==class_idx[m],,drop = F]
+  X_p1 <- X[y!=base_class,,drop = F]
+  X_p2 <- X[y==base_class,,drop = F]
   n_p1 <- nrow(X_p1)
   n_p2 <- nrow(X_p2)
-  Y_p1 <- sapply(class_idx[1:(m-1)], function(id){as.numeric(y[1:n_p1]==id)})
+  y_p1 <- y[y!=base_class]
+  Y_p1 <- sapply(rel_class, function(id){y_p1==id})
+  
   p <- ncol(X)
   w <- Variable(rows = m-1, cols = p)
-  b <- Variable(m-1)
-  
+  if(intercept == T){
+    b <- Variable(m-1)
+  }else{
+    b <- rep(0,m-1)
+  }
   
   slack_p1 <- Variable(rows = n_p1, cols = m-1)
   slack_p2 <- Variable(rows = n_p2, cols = m-1)
@@ -302,13 +429,13 @@ New3_pri_opt <- function(X,y,C){
   u <- Variable(rows = n_p1*(m-2), cols = m-1)
   
   
-  objective <- Minimize(sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
+  objective <- Minimize(lambda*sum_squares(w)/2 +  C*(sum(epsilon_p1)+sum_entries(slack_p2)))
   constraints <- list(((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1)%*%matrix(1, nrow = m-1, ncol = m-1) - (X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b)) >= (1-Y_p1)*(1-slack_p1),
                       vec(t(epsilon_p1%*%matrix(1,ncol=m-2))) >=  rep(seq(1,m-2),n_p1)/rep(seq(2,m-1),n_p1)*t + 1/rep(seq(2,m-1),n_p1)*sum_entries(u,axis=1),
                       t%*%matrix(1,nrow=1,ncol=m-1) + u >=  (diag(1,n_p1)%x%matrix(1,nrow=m-2))%*%slack_p1,
                       u>=0,
                       sum_entries((X_p1%*%t(w) + matrix(1,nrow=n_p1,ncol =1)%*%t(b))*Y_p1, axis = 1) >= 1-epsilon_p1,
-                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= -1 + slack_p2,
+                      X_p2%*%t(w) + matrix(1,nrow=n_p2,ncol =1)%*%t(b) <= -0 + slack_p2,
                       slack_p1 >=0,
                       slack_p2 >=0)
   
@@ -316,25 +443,107 @@ New3_pri_opt <- function(X,y,C){
   New3 <- Problem(objective, constraints)
   CVXR_New3 <- solve(New3, solver = "MOSEK")
   
-  return(cbind(CVXR_New3$getValue(w),CVXR_New3$getValue(b)))
+  if(intercept == T){
+    fit <- list(beta = cbind(CVXR_New3$getValue(w),CVXR_New3$getValue(b)), X = X, y = y, value = CVXR_New3$value, status = CVXR_New3$status)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }else{  
+    fit <- list(beta = cbind(CVXR_New3$getValue(w),0), X = X, y = y, value = CVXR_New3$value, status = CVXR_New3$status)
+    class(fit) <- "msvm"
+    attr(fit,"base_class") <- base_class
+    return(fit)
+  }
 }
 
 
-
-pred <- function(X_test,w, rule = "simple_max"){
-  lpred <- cbind(X_test,1)%*%t(w)
+predict.msvm <- function(model, X_test, rule = "simple_max"){
   if(rule == "simple_max"){
-    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
-  }else if(rule == "dagger_new1")
+    lpred <- round(cbind(X_test,1)%*%t(model$beta),7)
+    # y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+    y_pred <-  apply(lpred, MARGIN = 1, FUN= function(t){
+      ifelse(sum(abs(max(t) - t)<=1e-3)==1, which.max(t), 0)
+    })
+  }else if(rule == "dagger")
   {
-    lpred <- cbind(lpred, 0 - apply(as.matrix(cbind(lpred[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(lpred[,2]+1,0)), MARGIN = 1, FUN = max))
+    lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
+    base_class <- attr(model, "base_class") 
+    rel_class <- setdiff(unique(model$y), base_class)
+    lpred[, -c(base_class)] <-cbind(X_test,1)%*%t(model$beta)
+    lpred[, base_class] <- 1-rowSums(sapply(rel_class, function(idx){apply(as.matrix(cbind(lpred[,idx],0)), MARGIN = 1, FUN = max)}))
+    # y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+    y_pred <-  apply(round(lpred,7), MARGIN = 1, FUN= function(t){
+      ifelse(sum(abs(max(t) - t)<=1e-3)==1, which.max(t), 0)
+    })
+  }else if(rule == "dagger2")
+  {
+    lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
+    base_class <- attr(model, "base_class") 
+    rel_class <- setdiff(unique(model$y), base_class)
+    lpred[, -c(base_class)] <-cbind(X_test,1)%*%t(model$beta)
+    lpred[, base_class] <- 1/2-rowSums(sapply(rel_class, function(idx){apply(as.matrix(cbind(lpred[,idx]+1/2,0)), MARGIN = 1, FUN = max)}))
     y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
-  }else{
-    lpred <- cbind(lpred, 1 - apply(as.matrix(cbind(lpred[,1],0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(lpred[,2],0)), MARGIN = 1, FUN = max))
+  }else if(rule == "dagger_MSVM7")
+  {
+    lpred <- cbind(lpred, 1 - apply(as.matrix(cbind(lpred[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(lpred[,2]+1,0)), MARGIN = 1, FUN = max))
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+  }
+  else if(rule == "0_max"){
+    lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
+    base_class <- attr(model, "base_class") 
+    rel_idx <- setdiff(unique(model$y), base_class)
+    lpred[, -c(base_class)] <-cbind(X_test,1)%*%t(model$beta)
+    lpred[, base_class] <- 0
     y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
   }
   return(y_pred)
 }
+
+plot_1D_decision_boundary <- function(model, X = NULL, y = NULL, title = NULL, np_resolution = 500, xlim =NULL, ylim = NULL, rule = "simple_max", print = F){
+  
+  if(is.null(X)|| is.null(y))
+  {
+    X_dat <- as.data.frame(cbind(model$X,0))
+    colnames(X_dat) <- c("x","y")
+    X_dat$class <- as.factor(model$y)  
+  }
+  else{
+    X_dat <- as.data.frame(X)
+    colnames(X_dat) <- c("x","y")
+    X_dat$class <- as.factor(y)  
+  }
+  
+  if(is.null(xlim)){
+    xlim = c( floor(min(X_dat$x,X_dat$y))-.2, ceiling(max(X_dat$x,X_dat$y))+.2)
+  }
+  if(is.null(ylim)){
+    ylim = c(-1,1)
+  }
+  
+  nd.x = seq(from = xlim[1], to =  xlim[2], length.out = np_resolution)
+  nd.y = seq(from = ylim[1], to =  ylim[2], length.out = np_resolution)
+  nd = expand.grid(x = nd.x, y = nd.y)
+  model$beta <- cbind(model$beta[1,], 0, model$beta[2,])
+  nd$class <- as.factor(predict(model, as.matrix(nd), rule = rule))
+  
+  colorfun <- function(n,l=65,c=100) { hues = seq(15, 375, length=n+1); hcl(h=hues, l=l, c=c)[1:n] } # default ggplot2 colours
+  colors <- colorfun(length(unique(model$y)))
+  colorslight <- colorfun(length(unique(model$y)),l=90,c=50)
+  names(colorslight) <- unique(model$y) 
+  plt <- ggplot(nd, aes(x=x, y=y)) +
+    geom_raster(data=nd, aes(x = x, y = y, fill = factor(class)),alpha=0.7,show.legend=FALSE) +
+    geom_contour(data=nd, aes(x = x, y = y, z= as.numeric(nd$class)), colour="red2", alpha=0.5, breaks=c(1.5,2.5)) +
+    geom_point(data = X_dat, size = 2, aes(pch = class,  colour = class)) +
+    scale_x_continuous(limits = xlim, expand=c(0,0)) +
+    scale_y_continuous(limits = ylim, expand=c(0,0)) +
+    scale_fill_manual(values=colorslight,guide=F) + 
+    ggtitle(title)
+  if(print == T){
+    suppressWarnings(print(plt))
+  }
+  return(plt)
+}
+
 
 data_generate <- function(n, sep =  1,  v = 1.5^2){
   y <- sort(sample(c(1,2,3), size = n-3, replace = T, prob =  1/rep(3,3)))
@@ -367,44 +576,49 @@ data_generate <- function(n, sep =  1,  v = 1.5^2){
   return(list(X = X,y = y))
 }
 
-plot_decision_boundary <- function(X, y, beta, title = NULL, np_resolution = 500, xlim =NULL, ylim = NULL, dagger_rule_w = F, dagger_rule_s = F){
-  X_dat <- as.data.frame(X)
+plot_decision_boundary <- function(model, X = NULL, y = NULL, title = NULL, np_resolution = 500, xlim =NULL, ylim = NULL, rule = "simple_max", print = F){
+  
+  if(is.null(X)|| is.null(y))
+  {
+    X_dat <- as.data.frame(model$X)
+    colnames(X_dat) <- c("x","y")
+    X_dat$class <- as.factor(model$y)  
+  }
+  else{
+    X_dat <- as.data.frame(X)
+    colnames(X_dat) <- c("x","y")
+    X_dat$class <- as.factor(y)  
+  }
+  
   if(is.null(xlim)){
-    xlim = c( floor(min(X_dat$V1))-1, ceiling(max(X_dat$V1))+1)
+    xlim = c( floor(min(X_dat$x,X_dat$y))-.2, ceiling(max(X_dat$x,X_dat$y))+.2)
   }
   if(is.null(ylim)){
-    ylim = c( floor(min(X_dat$V2))-1, ceiling(max(X_dat$V2))+1)
+    ylim = c( floor(min(X_dat$x,X_dat$y))-.2, ceiling(max(X_dat$x,X_dat$y))+.2)
   }
   
   nd.x = seq(from = xlim[1], to =  xlim[2], length.out = np_resolution)
   nd.y = seq(from = ylim[1], to =  ylim[2], length.out = np_resolution)
-  nd = expand.grid(Var1 = nd.x, Var2 = nd.y)
-  if(nrow(beta) == length(unique(y))){
-    prd = apply(as.matrix(cbind(nd,1))%*%t(beta), MARGIN = 1, FUN = which.max)
-  }else{
-    if(dagger_rule_w==T && dagger_rule_s == F){
-      prd_p = as.matrix(cbind(nd,1))%*%t(beta)
-      prd_p =  cbind(prd_p, 0 - apply(as.matrix(cbind(prd_p[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(prd_p[,2]+1,0)), MARGIN = 1, FUN = max))
-      prd = apply(prd_p, MARGIN = 1, FUN = which.max)
-    }else if(dagger_rule_w==F && dagger_rule_s == T){
-      prd_p = as.matrix(cbind(nd,1))%*%t(beta)
-      prd_p =  cbind(prd_p, 1 - apply(as.matrix(cbind(prd_p[,1]+1,0)), MARGIN = 1, FUN = max) - apply(as.matrix(cbind(prd_p[,2]+1,0)), MARGIN = 1, FUN = max))
-      prd = apply(prd_p, MARGIN = 1, FUN = which.max)
-    }else{
-      prd_p = as.matrix(cbind(nd,1))%*%t(rbind(beta,0))
-      prd = apply(prd_p, MARGIN = 1, FUN = which.max)
-    }
+  nd = expand.grid(x = nd.x, y = nd.y)
+  
+  nd$class <- as.factor(predict(model, as.matrix(nd), rule = rule))
+  
+  colorfun <- function(n,l=65,c=100) { hues = seq(15, 375, length=n+1); hcl(h=hues, l=l, c=c)[1:n] } # default ggplot2 colours
+  colors <- colorfun(length(unique(model$y)))
+  colorslight <- colorfun(length(unique(model$y)),l=90,c=50)
+  names(colorslight) <- sort(unique(model$y)) 
+  plt <- ggplot(nd, aes(x=x, y=y)) +
+    geom_raster(data=nd, aes(x = x, y = y, fill = factor(class)),alpha=0.7,show.legend=FALSE) +
+    geom_contour(data=nd, aes(x = x, y = y, z= as.numeric(nd$class)), colour="red2", alpha=0.5, breaks=c(1.5,2.5)) +
+    geom_point(data = X_dat, size = 2, aes(pch = class,  colour = class)) +
+    scale_x_continuous(limits = xlim, expand=c(0,0)) +
+    scale_y_continuous(limits = ylim, expand=c(0,0)) +
+    scale_fill_manual(values=colorslight,guide=F) + 
+    ggtitle(title)
+  if(print == T){
+    suppressWarnings(print(plt))
   }
- 
-  op <-  par(mfrow = c(1,1), mar=c(5.1, 4.1, 4.1, 7), xpd=TRUE)
-  plot(X_dat$V1, X_dat$V2, col = as.factor(y), ylim=ylim, xlim=xlim, xlab ="X", ylab = "Y", main = title)
-  
-  contour(x = nd.x, y = nd.y, z = matrix(prd, nrow = np_resolution, ncol = np_resolution), 
-          levels = unique(y), add = TRUE, drawlabels = FALSE)
-
-  
-  legend("topright", inset=c(-0.3,0),legend = sapply(unique(y), function(x){paste("Class ",x)}), col= unique(y), pch = 1)
-  par(op)
+  return(plt)
 }
 
 

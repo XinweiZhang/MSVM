@@ -1,0 +1,250 @@
+---
+title: "Error Rate Trend Plots (Equal Proportion)"
+author: "Xinwei"
+date: "10/8/2020"
+output:
+  html_document:
+  toc: true
+toc_depth: 3   
+theme: united
+number_sections: true
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+
+setwd("~/Desktop/Multiclass Classification/MSVM Code")
+load(file = "Error_rate_trend (Equal Proportions).Rdata")
+
+```
+
+# $\nu=1$ 
+
+```{r echo = F}
+nu = 1
+error_mat <- error_list[[1]]
+M_list <- seq(1e-2,1,length.out = ncol(error_mat))
+B_list <- 4/seq(1e-2,1,length.out = ncol(error_mat))
+df <- data.frame(cbind(M_list, t(error_mat)))
+colnames(df) <-c("M", "WW","CS","Duchi","MDuchi")
+
+
+df_plot1 <- reshape2::melt(df[,c("M", "WW","CS","Duchi","MDuchi")], id.var='M')
+colnames(df_plot1) <- c("M",  "Loss", "Error")
+ggplot(df_plot1, aes(x=M, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +  theme_linedraw()  + 
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+
+B_list <- 4/seq(1e-2,1,length.out = ncol(error_mat))
+df <- data.frame(cbind(B_list, t(error_mat)))
+colnames(df) <-c("B", "WW","CS","Duchi","MDuchi")
+
+df_plot1 <- reshape2::melt(df[,c("B", "WW","CS","Duchi","MDuchi")], id.var='B')
+colnames(df_plot1) <- c("B",  "Loss", "Error")
+ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +
+  theme_linedraw() +
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+# 
+# 
+# ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+#   ggtitle(paste("nu = ",nu)) + scale_color_manual(values = c("Red", "Blue", "Green", "purple")) + 
+#   theme_linedraw()  +
+#   # geom_abline(slope = 3/2*nu, intercept = -nu, col = "green") +
+#   # geom_abline(slope = nu, intercept = nu, col = "red") +
+#   # geom_abline(slope = nu, intercept = -nu, col = "blue") +
+#   # geom_abline(slope = 5/6*nu, intercept = 1/3*nu, col = "Purple") + 
+#   geom_segment(aes(x = 4, xend = 100/(4*nu), y = 4*nu*4, yend = 100), col = "red", lty=4) +   #WW upper bound
+#   geom_segment(aes(x = 4, xend = 100/(2*nu), y = 2*nu*4, yend = 100), col = "blue", lty=4)+   #CS upper bound
+#   geom_segment(aes(x = 4, xend = (100/(2*nu) + 1/3)/2, y = 2*(2*4-1/3)*nu, yend = 100), col = "green", lty=4)+   #Duchi upper bound
+#   geom_segment(aes(x = 4, xend = 100/(8*nu)*3, y = 8/3*nu*4, yend = 100), col = "purple", lty=4)+   #MDuchi upper bound
+#   
+#   # geom_segment(aes(x = (100/nu+3)/4, xend = (100/nu+3)/4, y = 0, yend = 100), col = "red", lty=2) +   #WW lower bound boundary
+#   # geom_segment(aes(x = (100/nu+3)/2, xend = (100/nu+3)/2, y = 0, yend = 100), col = "blue", lty=2)+   #CS upper bound boundary
+#   # geom_segment(aes(x = (100/nu+11)/3, xend = (100/nu+11)/3, y = 0, yend = 100), col = "green", lty=2)+   #Duchi lower bound boundary
+#   # geom_segment(aes(x = (100/nu+2)/2, xend = (100/nu+2)/2, y = 0, yend = 100), col = "purple", lty=2)+   #MDuchi lower bound boundary
+#   # 
+#   geom_vline(xintercept = (100/nu+5)*2/7, lty=2, col = "green") +
+#   geom_vline(xintercept = (100/nu+3)/2, lty=2, col = "blue") +
+#   geom_vline(xintercept = (100/nu+11)/3, lty=2, col = "red") +
+#   geom_vline(xintercept = (100/nu+2)/2, lty=2, col = "purple") +
+#   ylim(0,100) + xlim(4,60)   
+
+
+```
+
+
+
+# $\nu=2$ 
+
+
+```{r echo = F}
+nu = 2
+error_mat <- error_list[[2]]
+df <- data.frame(cbind(M_list, t(error_mat)))
+colnames(df) <-c("M", "WW","CS","Duchi","MDuchi")
+
+
+df_plot1 <- reshape2::melt(df[,c("M", "WW","CS","Duchi","MDuchi")], id.var='M')
+colnames(df_plot1) <- c("M",  "Loss", "Error")
+ggplot(df_plot1, aes(x=M, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +  theme_linedraw()  + 
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+
+B_list <- 4/seq(1e-2,1,length.out = ncol(error_mat))
+df <- data.frame(cbind(B_list, t(error_mat)))
+colnames(df) <-c("B", "WW","CS","Duchi","MDuchi")
+
+df_plot1 <- reshape2::melt(df[,c("B", "WW","CS","Duchi","MDuchi")], id.var='B')
+colnames(df_plot1) <- c("B",  "Loss", "Error")
+ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +
+  theme_linedraw() +
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+
+# 
+# ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+#   ggtitle(paste("nu = ",nu)) + scale_color_manual(values = c("Red", "Blue", "Green", "purple")) + 
+#   theme_linedraw()  +
+#   # geom_abline(slope = 3/2*nu, intercept = -nu, col = "green") +
+#   # geom_abline(slope = nu, intercept = nu, col = "red") +
+#   # geom_abline(slope = nu, intercept = -nu, col = "blue") +
+#   # geom_abline(slope = 5/6*nu, intercept = 1/3*nu, col = "Purple") + 
+#   geom_segment(aes(x = 4, xend = 100/(4*nu), y = 4*nu*4, yend = 100), col = "red", lty=4) +   #WW upper bound
+#   geom_segment(aes(x = 4, xend = 100/(2*nu), y = 2*nu*4, yend = 100), col = "blue", lty=4)+   #CS upper bound
+#   geom_segment(aes(x = 4, xend = (100/(2*nu) + 1/3)/2, y = 2*(2*4-1/3)*nu, yend = 100), col = "green", lty=4)+   #Duchi upper bound
+#   geom_segment(aes(x = 4, xend = 100/(8*nu)*3, y = 8/3*nu*4, yend = 100), col = "purple", lty=4)+   #MDuchi upper bound
+#   
+#   # geom_segment(aes(x = (100/nu+3)/4, xend = (100/nu+3)/4, y = 0, yend = 100), col = "red", lty=2) +   #WW lower bound boundary
+#   # geom_segment(aes(x = (100/nu+3)/2, xend = (100/nu+3)/2, y = 0, yend = 100), col = "blue", lty=2)+   #CS upper bound boundary
+#   # geom_segment(aes(x = (100/nu+11)/3, xend = (100/nu+11)/3, y = 0, yend = 100), col = "green", lty=2)+   #Duchi lower bound boundary
+#   # geom_segment(aes(x = (100/nu+2)/2, xend = (100/nu+2)/2, y = 0, yend = 100), col = "purple", lty=2)+   #MDuchi lower bound boundary
+#   # 
+#   geom_vline(xintercept = (100/nu+5)*2/7, lty=2, col = "green") +
+#   geom_vline(xintercept = (100/nu+3)/2, lty=2, col = "blue") +
+#   geom_vline(xintercept = (100/nu+11)/3, lty=2, col = "red") +
+#   geom_vline(xintercept = (100/nu+2)/2, lty=2, col = "purple") +
+#   ylim(0,100) + xlim(4,30)   
+
+
+```
+
+
+# $\nu=5$ 
+
+
+```{r echo = F}
+nu = 5
+error_mat <- error_list[[3]]
+df <- data.frame(cbind(M_list, t(error_mat)))
+colnames(df) <-c("M", "WW","CS","Duchi","MDuchi")
+
+
+df_plot1 <- reshape2::melt(df[,c("M", "WW","CS","Duchi","MDuchi")], id.var='M')
+colnames(df_plot1) <- c("M",  "Loss", "Error")
+ggplot(df_plot1, aes(x=M, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +  theme_linedraw()  + 
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+
+B_list <- 4/seq(1e-2,1,length.out = ncol(error_mat))
+df <- data.frame(cbind(B_list, t(error_mat)))
+colnames(df) <-c("B", "WW","CS","Duchi","MDuchi")
+
+df_plot1 <- reshape2::melt(df[,c("B", "WW","CS","Duchi","MDuchi")], id.var='B')
+colnames(df_plot1) <- c("B",  "Loss", "Error")
+ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +
+  theme_linedraw() +
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+# 
+# 
+# ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+#   ggtitle(paste("nu = ",nu)) + scale_color_manual(values = c("Red", "Blue", "Green", "purple")) + 
+#   theme_linedraw()  +
+#   # geom_abline(slope = 3/2*nu, intercept = -nu, col = "green") +
+#   # geom_abline(slope = nu, intercept = nu, col = "red") +
+#   # geom_abline(slope = nu, intercept = -nu, col = "blue") +
+#   # geom_abline(slope = 5/6*nu, intercept = 1/3*nu, col = "Purple") + 
+#   geom_segment(aes(x = 4, xend = 100/(4*nu), y = 4*nu*4, yend = 100), col = "red", lty=4) +   #WW upper bound
+#   geom_segment(aes(x = 4, xend = 100/(2*nu), y = 2*nu*4, yend = 100), col = "blue", lty=4)+   #CS upper bound
+#   geom_segment(aes(x = 4, xend = (100/(2*nu) + 1/3)/2, y = 2*(2*4-1/3)*nu, yend = 100), col = "green", lty=4)+   #Duchi upper bound
+#   geom_segment(aes(x = 4, xend = 100/(8*nu)*3, y = 8/3*nu*4, yend = 100), col = "purple", lty=4)+   #MDuchi upper bound
+#   
+#   # geom_segment(aes(x = (100/nu+3)/4, xend = (100/nu+3)/4, y = 0, yend = 100), col = "red", lty=2) +   #WW lower bound boundary
+#   # geom_segment(aes(x = (100/nu+3)/2, xend = (100/nu+3)/2, y = 0, yend = 100), col = "blue", lty=2)+   #CS upper bound boundary
+#   # geom_segment(aes(x = (100/nu+11)/3, xend = (100/nu+11)/3, y = 0, yend = 100), col = "green", lty=2)+   #Duchi lower bound boundary
+#   # geom_segment(aes(x = (100/nu+2)/2, xend = (100/nu+2)/2, y = 0, yend = 100), col = "purple", lty=2)+   #MDuchi lower bound boundary
+#   # 
+#   geom_vline(xintercept = (100/nu+5)*2/7, lty=2, col = "green") +
+#   geom_vline(xintercept = (100/nu+3)/2, lty=2, col = "blue") +
+#   geom_vline(xintercept = (100/nu+11)/3, lty=2, col = "red") +
+#   geom_vline(xintercept = (100/nu+2)/2, lty=2, col = "purple") +
+#   ylim(0,100) + xlim(4,15)   
+# 
+
+```
+
+
+
+# $\nu=10$ 
+
+
+```{r echo = F}
+nu = 5
+error_mat <- error_list[[3]]
+df <- data.frame(cbind(M_list, t(error_mat)))
+colnames(df) <-c("M", "WW","CS","Duchi","MDuchi")
+
+
+df_plot1 <- reshape2::melt(df[,c("M", "WW","CS","Duchi","MDuchi")], id.var='M')
+colnames(df_plot1) <- c("M",  "Loss", "Error")
+ggplot(df_plot1, aes(x=M, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +  theme_linedraw()  + 
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+
+B_list <- 4/seq(1e-2,1,length.out = ncol(error_mat))
+df <- data.frame(cbind(B_list, t(error_mat)))
+colnames(df) <-c("B", "WW","CS","Duchi","MDuchi")
+
+df_plot1 <- reshape2::melt(df[,c("B", "WW","CS","Duchi","MDuchi")], id.var='B')
+colnames(df_plot1) <- c("B",  "Loss", "Error")
+ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+  ylim(0,100) +  ggtitle(paste("nu = ",nu)) +
+  theme_linedraw() +
+  scale_color_manual(values = c("Red", "Blue", "Green", "Purple"))
+
+
+# 
+# ggplot(df_plot1, aes(x=B, y = Error, col = Loss))+geom_line( alpha = 0.8, size = 1) +
+#   ggtitle(paste("nu = ",nu)) + scale_color_manual(values = c("Red", "Blue", "Green", "purple")) + 
+#   theme_linedraw()  +
+#   # geom_abline(slope = 3/2*nu, intercept = -nu, col = "green") +
+#   # geom_abline(slope = nu, intercept = nu, col = "red") +
+#   # geom_abline(slope = nu, intercept = -nu, col = "blue") +
+#   # geom_abline(slope = 5/6*nu, intercept = 1/3*nu, col = "Purple") + 
+#   geom_segment(aes(x = 4, xend = 100/(4*nu), y = 4*nu*4, yend = 100), col = "red", lty=4) +   #WW upper bound
+#   geom_segment(aes(x = 4, xend = 100/(2*nu), y = 2*nu*4, yend = 100), col = "blue", lty=4)+   #CS upper bound
+#   geom_segment(aes(x = 4, xend = (100/(2*nu) + 1/3)/2, y = 2*(2*4-1/3)*nu, yend = 100), col = "green", lty=4)+   #Duchi upper bound
+#   geom_segment(aes(x = 4, xend = 100/(8*nu)*3, y = 8/3*nu*4, yend = 100), col = "purple", lty=4)+   #MDuchi upper bound
+#   
+#   # geom_segment(aes(x = (100/nu+3)/4, xend = (100/nu+3)/4, y = 0, yend = 100), col = "red", lty=2) +   #WW lower bound boundary
+#   # geom_segment(aes(x = (100/nu+3)/2, xend = (100/nu+3)/2, y = 0, yend = 100), col = "blue", lty=2)+   #CS upper bound boundary
+#   # geom_segment(aes(x = (100/nu+11)/3, xend = (100/nu+11)/3, y = 0, yend = 100), col = "green", lty=2)+   #Duchi lower bound boundary
+#   # geom_segment(aes(x = (100/nu+2)/2, xend = (100/nu+2)/2, y = 0, yend = 100), col = "purple", lty=2)+   #MDuchi lower bound boundary
+#   # 
+#   geom_vline(xintercept = (100/nu+5)*2/7, lty=2, col = "green") +
+#   geom_vline(xintercept = (100/nu+3)/2, lty=2, col = "blue") +
+#   geom_vline(xintercept = (100/nu+11)/3, lty=2, col = "red") +
+#   geom_vline(xintercept = (100/nu+2)/2, lty=2, col = "purple") +
+#   ylim(0,100) + xlim(4,15)   
+
+
+```

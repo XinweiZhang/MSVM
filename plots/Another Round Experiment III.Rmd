@@ -1,0 +1,941 @@
+---
+title: "Another Round Experiment III"
+author: "Xinwei"
+date: "8/1/2020"
+output: 
+ html_document:
+     toc: true
+     toc_depth: 3   
+     theme: united
+     number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+library(CVXR)
+library(MASS)
+library(R.matlab)
+library(e1071)
+library(kernlab)
+library(glmnet)
+library(ggpubr)
+library(truncnorm)
+library(ggplot2)
+rm(list=ls())
+setwd("~/Desktop/Multiclass Classification/MSVM Code")
+source("primary form functions.R")
+source("kernel primary form functions.R")
+
+
+
+plot_batch <- function(train_data, test_data, test_data2, C, lambda, intercept = T){
+    
+  WW_fit <- WW_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept)
+  predicted_label <- predict(WW_fit, test_data$X) 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(WW_fit, test_data2$X)== test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("WW:",paste(paste(acc, collapse = ","), paste(acc_g, collapse = ","), sep = "\n"))
+  g1.1 <- plot_decision_boundary(WW_fit, print = F, title = title)
+  
+  CS_fit <- CS_pri_opt(train_data$X,train_data$y,  C=C, lambda=lambda, intercept = intercept)
+  predicted_label <- predict(CS_fit, test_data$X) 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(CS_fit, test_data2$X) == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("CS:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g1.2 <- plot_decision_boundary(CS_fit, print = F, title = title)
+  
+  Duchi_fit <- Duchi_pri_opt(train_data$X,train_data$y,  C= 1, lambda=0, intercept = T)
+  predicted_label <- predict(Duchi_fit, test_data$X) 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(Duchi_fit, test_data2$X) == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("Duchi:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g1.3 <- plot_decision_boundary(Duchi_fit, print = F, title = title)
+  
+  MDuchi_fit <- MDuchi_pri_opt(train_data$X,train_data$y,  C=C, lambda=lambda, intercept = intercept)
+  predicted_label <- predict(MDuchi_fit, test_data$X) 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(MDuchi_fit, test_data2$X) == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("MDuchi:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g1.4 <- plot_decision_boundary(MDuchi_fit, print = F, title = title)
+  
+
+
+  
+  New1_fit <- New1_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 1)
+  predicted_label <- predict(New1_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New1_fit, test_data2$X, rule = "dagger") == test_data2$y) *100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New1:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g2.1 <- plot_decision_boundary(New1_fit, print = F, title = title, rule = "dagger") 
+  
+    
+  New1_fit <- New1_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 2)
+  predicted_label <- predict(New1_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New1_fit, test_data2$X, rule = "dagger") == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New1:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g2.2 <- plot_decision_boundary(New1_fit, print = F, title = title, rule = "dagger") 
+  
+  New1_fit <- New1_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 3)
+  predicted_label <- predict(New1_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New1_fit, test_data2$X, rule = "dagger") == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New1:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g2.3 <- plot_decision_boundary(New1_fit, print = F, title = title, rule = "dagger") 
+  
+    
+  New1_fit <- New1_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 4)
+  predicted_label <- predict(New1_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New1_fit, test_data2$X, rule = "dagger")  == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New1:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g2.4 <- plot_decision_boundary(New1_fit, print = F, title = title, rule = "dagger") 
+  
+  
+
+  fit <- glmnet(x =  train_data$X, y =  train_data$y, family = "multinomial", lambda=0, intercept = T)
+  Multinom_fit <- MDuchi_fit
+  Multinom_fit$beta <- t(do.call(cbind,coef(fit)))[,c(2,3,1)]
+  predicted_label <- predict(Multinom_fit, test_data$X)
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(Multinom_fit, test_data2$X) == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("Multinom:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g4.4 <- plot_decision_boundary(Multinom_fit, print = F, title = title)
+
+
+  New3_fit <- New3_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 1)
+  predicted_label <- predict(New3_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New3_fit, test_data2$X, rule = "dagger")  == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New3:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g3.1 <- plot_decision_boundary(New3_fit, print = F, title = title, rule = "dagger") 
+ 
+  New3_fit <- New3_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 2)
+  predicted_label <- predict(New3_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New3_fit, test_data2$X, rule = "dagger")  == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New3:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g3.2 <- plot_decision_boundary(New3_fit, print = F, title = title, rule = "dagger") 
+  
+  New3_fit <- New3_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 3)
+  predicted_label <- predict(New3_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New3_fit, test_data2$X, rule = "dagger")  == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New3:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g3.3 <- plot_decision_boundary(New3_fit, print = F, title = title, rule = "dagger") 
+  
+  New3_fit <- New3_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 4)
+  predicted_label <- predict(New3_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(New3_fit, test_data2$X, rule = "dagger")  == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("New3:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g3.4 <- plot_decision_boundary(New3_fit, print = F, title = title, rule = "dagger") 
+  
+  # 
+  g4.1 <- tryCatch({
+  LLW_fit <- LLW_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept)
+  predicted_label <- predict(LLW_fit, test_data$X)
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(LLW_fit, test_data2$X) == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("MSVM7:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  return(plot_decision_boundary(LLW_fit, print = F, title = title, rule = "dagger"))
+  }, error = function(e){ NULL})
+  
+  OVA_fit <- OVA_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept)
+  predicted_label <- predict(OVA_fit, test_data$X) 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(OVA_fit, test_data2$X) == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("OVA:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g4.2 <- plot_decision_boundary(OVA_fit, print = F, title = title)
+  
+  
+  
+  
+  MSVM8_fit <- MSVM8_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept)
+  predicted_label <- predict(MSVM8_fit, test_data$X) 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(MSVM8_fit, test_data2$X) == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("MSVM8:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g4.3 <- plot_decision_boundary(MSVM8_fit, print = F, title = title)
+  
+  
+  MSVM7_fit <- MSVM7_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 1)
+  predicted_label <- predict(MSVM7_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(MSVM7_fit, test_data2$X, rule = "dagger")  == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("MSVM7:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g5.1 <- plot_decision_boundary(MSVM7_fit, print = F, title = title, rule = "dagger") 
+  
+  MSVM7_fit <- MSVM7_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 2)
+  predicted_label <- predict(MSVM7_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(MSVM7_fit, test_data2$X, rule = "dagger") == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("MSVM7:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g5.2 <- plot_decision_boundary(MSVM7_fit, print = F, title = title, rule = "dagger") 
+  
+  MSVM7_fit <- MSVM7_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 3)
+  predicted_label <- predict(MSVM7_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(MSVM7_fit, test_data2$X, rule = "dagger") == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("MSVM7:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g5.3 <- plot_decision_boundary(MSVM7_fit, print = F, title = title, rule = "dagger") 
+    
+  MSVM7_fit <- MSVM7_pri_opt(train_data$X,train_data$y, C=C, lambda=lambda, intercept = intercept, base_class = 4)
+  predicted_label <- predict(MSVM7_fit, test_data$X, rule = "dagger") 
+  acc <- c(round(mean(predicted_label == test_data$y)*100,2),round(mean(predict(MSVM7_fit, test_data2$X, rule = "dagger") == test_data2$y)*100,2))
+  acc_g <- round(c(mean(predicted_label[test_data$y == 1]==1), mean(predicted_label[test_data$y == 2]==2), mean(predicted_label[test_data$y == 3]==3))*100,2)
+  title <- paste("MSVM7:",paste(paste(acc, collapse = ","),  paste(acc_g, collapse = ","), sep = "\n"))
+  g5.4 <- plot_decision_boundary(MSVM7_fit, print = F, title = title, rule = "dagger") 
+  
+  ggarrange(g1.1, g1.2, g1.3, g1.4,
+            g2.1, g2.2, g2.3, g2.4,
+            g3.1, g3.2, g3.3, g3.4,
+            g4.1, g4.2, g4.3, g4.4,
+            g5.1, g5.2, g5.3, g5.4, ncol=4, nrow = 5, common.legend = TRUE, legend="bottom")
+  
+
+}
+
+```
+
+# Four-class Gaussian Weakly Separable 2:1
+
+```{r echo=F}
+
+generate_noise_four_gaussian <- function(n, sep = 2, sep_n, train = T){
+  
+  
+  t <- sample(seq(1,4), size = n, replace = T)
+  
+  dat <- t(sapply(t , function(z){
+    if(z==1){
+      x <- mvrnorm(1,c(2,0), sep^2*diag(1,2))
+    }else if(z==2){
+      x <- mvrnorm(1,c(0,2), sep^2*diag(1,2))
+    }else if(z==3){
+      x <- mvrnorm(1,c(0,-2), sep^2*diag(1,2))
+    }else if(z==4){
+      x <- mvrnorm(1,c(-2,0) , sep^2*diag(1,2))
+    }
+    
+    
+    if(z==1){
+      y = sample(seq(1,4), size=1, prob= c(1, 0, 0, 0))
+    }else if(z==2){
+      y = sample(seq(1,4), size=1, prob= c(0, 1, 0, 0))
+    }else if(z==3){
+      y = sample(seq(1,4), size=1, prob= c(0, 0, 1, 0))
+    }else if(z==4){
+      y = sample(seq(1,4), size=1, prob= c(0, 0, 0, 1))
+    }
+    
+    return(c(x,y))
+  }))  
+  if(train==T){
+    N_n <- n/2
+    t_n <- sample(seq(1,4), size = N_n, replace = T)
+    dat_n <- t(sapply(t_n , function(z){
+      if(z==1){
+        x <- mvrnorm(1,c(1,0), sep_n^2*diag(1,2))
+      }else if(z==2){
+        x <- mvrnorm(1,c(0,1), sep_n^2*diag(1,2))
+      }else if(z==3){
+        x <- mvrnorm(1,c(0,-1), sep_n^2*diag(1,2))
+      }else if(z==4){
+        x <- mvrnorm(1,c(-1,0) , sep_n^2*diag(1,2))
+      }
+      
+      
+      if(z==1){
+        y = sample(seq(1,4), size=1, prob= c(1/3, 2/9, 2/9, 2/9))
+      }else if(z==2){
+        y = sample(seq(1,4), size=1, prob= c(2/9, 1/3, 2/9, 2/9))
+      }else if(z==3){
+        y = sample(seq(1,4), size=1, prob= c(2/9, 2/9, 1/3, 2/9))
+      }else if(z==4){
+        y = sample(seq(1,4), size=1, prob= c(2/9, 2/9, 2/9, 1/3))
+      }
+      
+      return(c(x,y))
+    }))  
+    X <- dat[,1:2]
+    y <- dat[,3]
+    X_n <- dat_n[,1:2]
+    y_n <- dat_n[,3]
+    X <- rbind(X,X_n)
+    y <- c(y,y_n)
+    t <- c(t,y_n)
+  
+  }else{
+    X <- dat[,1:2]
+    y <- dat[,3]
+  }
+  
+  
+  list(X=X,y=y, oracle_acc = mean(t==y), t=t)
+}
+
+
+```
+
+
+## n= 200
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 200
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 500
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 500
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+
+## n= 1000
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 1000
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 1500
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 1500
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+# Four-class Gaussian Weakly Separable 3:2
+
+```{r echo=F}
+
+generate_noise_four_gaussian <- function(n, sep = 2, sep_n, train = T){
+  
+  
+  t <- sample(seq(1,4), size = n, replace = T)
+  
+  dat <- t(sapply(t , function(z){
+    if(z==1){
+      x <- mvrnorm(1,c(2,0), sep^2*diag(1,2))
+    }else if(z==2){
+      x <- mvrnorm(1,c(0,2), sep^2*diag(1,2))
+    }else if(z==3){
+      x <- mvrnorm(1,c(0,-2), sep^2*diag(1,2))
+    }else if(z==4){
+      x <- mvrnorm(1,c(-2,0) , sep^2*diag(1,2))
+    }
+    
+    
+    if(z==1){
+      y = sample(seq(1,4), size=1, prob= c(1, 0, 0, 0))
+    }else if(z==2){
+      y = sample(seq(1,4), size=1, prob= c(0, 1, 0, 0))
+    }else if(z==3){
+      y = sample(seq(1,4), size=1, prob= c(0, 0, 1, 0))
+    }else if(z==4){
+      y = sample(seq(1,4), size=1, prob= c(0, 0, 0, 1))
+    }
+    
+    return(c(x,y))
+  }))  
+  if(train==T){
+    N_n <- floor(n/1.5)
+    t_n <- sample(seq(1,4), size = N_n, replace = T)
+    dat_n <- t(sapply(t_n , function(z){
+      if(z==1){
+        x <- mvrnorm(1,c(1,0), sep_n^2*diag(1,2))
+      }else if(z==2){
+        x <- mvrnorm(1,c(0,1), sep_n^2*diag(1,2))
+      }else if(z==3){
+        x <- mvrnorm(1,c(0,-1), sep_n^2*diag(1,2))
+      }else if(z==4){
+        x <- mvrnorm(1,c(-1,0) , sep_n^2*diag(1,2))
+      }
+      
+      
+      if(z==1){
+        y = sample(seq(1,4), size=1, prob= c(1/3, 2/9, 2/9, 2/9))
+      }else if(z==2){
+        y = sample(seq(1,4), size=1, prob= c(2/9, 1/3, 2/9, 2/9))
+      }else if(z==3){
+        y = sample(seq(1,4), size=1, prob= c(2/9, 2/9, 1/3, 2/9))
+      }else if(z==4){
+        y = sample(seq(1,4), size=1, prob= c(2/9, 2/9, 2/9, 1/3))
+      }
+      
+      return(c(x,y))
+    }))  
+    X <- dat[,1:2]
+    y <- dat[,3]
+    X_n <- dat_n[,1:2]
+    y_n <- dat_n[,3]
+    X <- rbind(X,X_n)
+    y <- c(y,y_n)
+    t <- c(t,y_n)
+  
+  }else{
+    X <- dat[,1:2]
+    y <- dat[,3]
+  }
+  
+  
+  list(X=X,y=y, oracle_acc = mean(t==y), t=t)
+}
+
+```
+
+
+## n= 200
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 200
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 500
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 500
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 1000
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 1000
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 1500
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 1500
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+
+# Four-class Gaussian Weakly Separable Asymnoise
+
+```{r echo=F}
+
+generate_noise_four_gaussian <- function(n, sep = 2, sep_n, train = T){
+  
+  
+  t <- sample(seq(1,4), size = n, replace = T)
+  
+  dat <- t(sapply(t , function(z){
+    if(z==1){
+      x <- mvrnorm(1,c(2,0), sep^2*diag(1,2))
+    }else if(z==2){
+      x <- mvrnorm(1,c(0,2), sep^2*diag(1,2))
+    }else if(z==3){
+      x <- mvrnorm(1,c(0,-2), sep^2*diag(1,2))
+    }else if(z==4){
+      x <- mvrnorm(1,c(-2,0) , sep^2*diag(1,2))
+    }
+    
+    
+    if(z==1){
+      y = sample(seq(1,4), size=1, prob= c(1, 0, 0, 0))
+    }else if(z==2){
+      y = sample(seq(1,4), size=1, prob= c(0, 1, 0, 0))
+    }else if(z==3){
+      y = sample(seq(1,4), size=1, prob= c(0, 0, 1, 0))
+    }else if(z==4){
+      y = sample(seq(1,4), size=1, prob= c(0, 0, 0, 1))
+    }
+    
+    return(c(x,y))
+  }))  
+  if(train==T){
+    N_n <- floor(n/1.5)
+    t_n <- sample(seq(1,4), size = N_n, replace = T)
+    dat_n <- t(sapply(t_n , function(z){
+      if(z==1){
+        x <- mvrnorm(1,c(1,0), sep_n^2*diag(1,2))
+      }else if(z==2){
+        x <- mvrnorm(1,c(0,1), sep_n^2*diag(1,2))
+      }else if(z==3){
+        x <- mvrnorm(1,c(0,-1), sep_n^2*diag(1,2))
+      }else if(z==4){
+        x <- mvrnorm(1,c(-1,0) , sep_n^2*diag(1,2))
+      }
+      
+      
+      if(z==1){
+        y = sample(seq(1,4), size=1, prob= c(1/3, 3/9, 1/9, 2/9))
+      }else if(z==2){
+        y = sample(seq(1,4), size=1, prob= c(1/9, 1/2, 1/9, 5/18))
+      }else if(z==3){
+        y = sample(seq(1,4), size=1, prob= c(1/3, 1/9, 4/9, 1/9))
+      }else if(z==4){
+        y = sample(seq(1,4), size=1, prob= c(2/9, 2/9, 2/9, 1/3))
+      }
+      
+      return(c(x,y))
+    }))  
+    X <- dat[,1:2]
+    y <- dat[,3]
+    X_n <- dat_n[,1:2]
+    y_n <- dat_n[,3]
+    X <- rbind(X,X_n)
+    y <- c(y,y_n)
+    t <- c(t,y_n)
+  
+  }else{
+    X <- dat[,1:2]
+    y <- dat[,3]
+  }
+  
+  
+  list(X=X,y=y, oracle_acc = mean(t==y), t=t)
+}
+
+```
+
+
+## n= 200
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 200
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 500
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 500
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 1000
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 1000
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+## n= 1500
+### Sep Noise sigma = 2/3
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+n <- 1500
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/3)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/2
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/2)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
+### Sep Noise sigma = 2/1
+
+```{r echo = F, fig.height=15, fig.width=12, warning = FALSE}
+set.seed(134)
+sep <-  sqrt(2)/2
+train_data <- generate_noise_four_gaussian(n, sep =sep, sep_n = 2/1)
+test_data <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=F)
+test_data2 <- generate_noise_four_gaussian(20000, sep = sep, sep_n = 1, train=T)
+
+plot_batch(train_data, test_data, test_data2, C=1, lambda = 0)
+  
+```
+
