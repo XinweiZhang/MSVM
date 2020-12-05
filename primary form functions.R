@@ -176,7 +176,7 @@ MDuchi_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, intercept_onl
     t <- Variable(n*(m-1))
     u <- Variable(rows = n*(m-1), cols = m)
   
-    objective <- Minimize(sum_squares(w)/2 +  C*sum(epsilon))
+    objective <- Minimize(lambda*sum_squares(w)/2 +  C*sum(epsilon))
     constraints <- list( sum_entries(b) == 0,
                          ((X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (X%*%t(w) + matrix(1,nrow=n,ncol =1)%*%t(b)) >= (1-Y)*(1-slack),
                          vec(t(epsilon%*%matrix(1,ncol=m-1))) >=  rep(seq(1,m-1),n)/rep(seq(2,m),n)*t + 1/rep(seq(2,m),n)*sum_entries(u,axis=1),
@@ -305,7 +305,7 @@ MSVM7_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T,  base_class = 
 
 
 
-  MSVM8_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T){
+MSVM8_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T){
   
   class_idx <- sort(unique(y))
   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
@@ -460,10 +460,10 @@ New3_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, base_class = NU
 predict.msvm <- function(model, X_test, rule = "simple_max"){
   if(rule == "simple_max"){
     lpred <- round(cbind(X_test,1)%*%t(model$beta),7)
-    # y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
-    y_pred <-  apply(lpred, MARGIN = 1, FUN= function(t){
-      ifelse(sum(abs(max(t) - t)<=1e-3)==1, which.max(t), 0)
-    })
+    y_pred <- apply(lpred, MARGIN = 1, FUN= which.max)
+    # y_pred <-  apply(lpred, MARGIN = 1, FUN= function(t){
+    #   ifelse(sum(abs(max(t) - t)<=1e-3)==1, which.max(t), 0)
+    # })
   }else if(rule == "dagger")
   {
     lpred <- matrix(0, nrow = nrow(X_test), ncol = length(unique(model$y)))
@@ -684,5 +684,56 @@ four_class_data_generate <- function(n, sep =  1,  v = 1.5^2){
   X <- rbind(X1,X2,X3,X4)
   y <- c(rep(1,nrow(X1)),rep(2,nrow(X2)),rep(3,nrow(X3)),rep(4,nrow(X4)))
   return(list(X = X,y = y))
+}
+
+
+
+CV <- function(flds, X_train, y_train, cost, name){
+  flds.acc <- sapply(1:length(flds), function(i){
+    X_train_cv <- X_train[flds[[i]], , drop = F]
+    y_train_cv <- y_train[flds[[i]]]
+    X_test_cv <- X_train[-flds[[i]], , drop = F]
+    y_test_cv <- y_train[-flds[[i]]]
+    X_train_cv <- scale(X_train_cv, center = T, scale = T)
+    X_test_cv <-  scale(X_test_cv, center = attr(X_train_cv,"scaled:center"), scale = attr(X_train_cv,"scaled:scale"))
+    
+    
+    acc <- NA
+    try({
+      if(name == "OVO"){
+        train_data_cv <- as.data.frame(cbind(as.factor(y_train_cv), X_train_cv))
+        test_data_cv <- as.data.frame(cbind(as.factor(y_test_cv), X_test_cv))
+        colnames(train_data_cv)[1] <- "y"
+        colnames(test_data_cv)[1] <- "y"
+        OVO_fit <- svm(as.factor(y)~., data = train_data_cv, kernel="linear", cost = cost, scale = F)
+        acc <- mean(predict(OVO_fit,  newdata = test_data_cv) == y_test_cv)
+        return(acc)
+      }
+    })
+    try({
+      if(name == "WW"){
+        fit <- WW_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }else if(name == "CS"){
+        fit <- CS_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }else if(name == "Duchi"){
+        fit <- Duchi_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }else if(name == "MDuchi"){
+        fit <- MDuchi_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }else if(name == "LLW"){
+        fit <- LLW_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }else if(name == "OVA"){
+        fit <- OVA_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }else if(name == "MSVM8"){
+        fit <- MSVM8_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }else if(name == "MSVM8"){
+        fit <- MSVM8_pri_opt(X = X_train_cv, y = y_train_cv, C = cost, intercept = F)
+      }
+      
+      pred <- predict(fit,  X_test_cv)
+      acc <- mean(pred == y_test_cv)
+    })
+    return(acc)
+  })
+  return(mean(flds.acc, na.rm = T))
 }
 

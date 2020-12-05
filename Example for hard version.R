@@ -4,7 +4,7 @@ library(R.matlab)
 library(e1071)
 rm(list = ls())
 setwd("~/Desktop/Multiclass Classification/MSVM Code")
-source("~/Desktop/Multiclass Classification/MSVM Code/MSVM_weak_hard.R")
+source("~/Desktop/Multiclass Classification/MSVM Code/MSVM weak hard-version functions.R")
 set.seed(1233)
 
 ########################
@@ -230,7 +230,7 @@ C = 1
   
 par(mfrow=c(1,2))
 ########Verify the nearest neighbour line are indeed perpendicular lines using Bayes rule of Bivariate Gaussian###########
-plot_nearest_neighbour_decision_boundary(X,y, title = "NN")
+plot_nearest_neighbour_decision_boundary(X,y, title = "NN", xlim = c(-5,5), ylim=c(-5,5))
 
 A <- rbind(c(1,-1,0),
            c(1,0,-1),
@@ -294,7 +294,14 @@ plot_decision_boundary(X,y,beta = NN_beta_rescale, title = paste("NN, Duchi:",ro
 weak_hard_beta <-  MSVM_Weak_Hard_opt(X,y,type = "Duchi")
 plot_decision_boundary(X,y,beta = weak_hard_beta, title = paste("MSVM, Duchi:", round(Duchi(weak_hard_beta[,1:2]),3)))
 
+plot_decision_boundary(X,y,beta = weak_hard_beta, title = "MSVM (Weak Separable)", xlim = c(-5,5),  ylim =c(-5,5))
 
+
+source("primary form functions.R")
+plot_decision_boundary(X,y,beta = weak_hard_beta, title = "MSVM (Weak Separable)", xlim = c(-5,5),  ylim =c(-5,5))
+C=1000
+beta <-  OVA_pri_opt(X,y,C)$beta
+plot_decision_boundary(X,y,beta = beta, title = "OVA", xlim = c(-5,5),  ylim =c(-5,5))
 
 ## New1
 

@@ -28,7 +28,11 @@ WW_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel){
   WW <- Problem(objective, constraints)
   CVXR_WW <- solve(WW)
   CVXR_WW_v <- CVXR_WW$getValue(v)
-  CVXR_WW_b <- CVXR_WW$getValue(b)
+  if(intercept == T){
+    CVXR_WW_b <- CVXR_WW$getValue(b) 
+  }else{  
+    CVXR_WW_b <- b
+  }
   
   model <- list(v = CVXR_WW_v, b = as.numeric(CVXR_WW_b), kernel = kernel, X = X, y= y)
   class(model) <- "msvm_kernel"
@@ -65,7 +69,11 @@ CS_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel){
   CS <- Problem(objective, constraints)
   CVXR_CS <- solve(CS, solver = "MOSEK")
   CVXR_CS_v <- CVXR_CS$getValue(v)
-  CVXR_CS_b <- CVXR_CS$getValue(b)
+  if(intercept == T){
+    CVXR_CS_b <- CVXR_CS$getValue(b)
+  }else{  
+    CVXR_CS_b <- b
+  }
   
   model <- list(v = CVXR_CS_v, b = as.numeric(CVXR_CS_b), kernel = kernel, X = X, y= y)
   class(model) <- "msvm_kernel"
@@ -107,53 +115,58 @@ Duchi_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel)
     Duchi <- Problem(objective, constraints)
     CVXR_Duchi <- solve(Duchi, solver = "MOSEK")
     CVXR_Duchi_v <- CVXR_Duchi$getValue(v)
-    CVXR_Duchi_b <- CVXR_Duchi$getValue(b)
+   
+    if(intercept == T){
+      CVXR_Duchi_b <- CVXR_Duchi$getValue(b)
+    }else{  
+      CVXR_Duchi_b <- b
+    }
     
     model <- list(v = CVXR_Duchi_v, b = as.numeric(CVXR_Duchi_b), kernel = kernel, X = X, y= y)
     class(model) <- "msvm_kernel"
     return(model)
 }
 
-
-
-MDuchi_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel){
-  class_idx <- sort(unique(y))
-  Y <- sapply(class_idx, function(id){as.numeric(y==id)})
-  n <- nrow(X)
-  p <- ncol(X)
-  m <- length(class_idx)
-  
-  K <- kernelMatrix(kernel, X)
-  suppressWarnings(class(K) <- "matrix")
-  
-  v <- Variable(n,m)
-  if(intercept == T){
-    b <- Variable(m)
-  }else{
-    b <- rep(0,m)
-  }
-  slack <- Variable(rows = n, cols = m)
-  epsilon <- Variable(n)
-  t <- Variable(n*(m-1))
-  u <- Variable(rows = n*(m-1), cols = m)
-  
-  objective <- Minimize(lambda*sum(do.call(rbind,sapply(1:m, FUN = function(k){quad_form(v[,k],K)})))/2 +  C*sum(epsilon))
-  constraints <- list(((K%*%v + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (K%*%v  + matrix(1,nrow=n,ncol =1)%*%t(b)) >= (1-Y)*(1-slack),
-                       sum_entries(b)*matrix(1,nrow=n) + K %*% sum_entries(v, axis = 1) == 0,
-                       vec(t(epsilon%*%matrix(1,ncol=m-1))) >=  rep(seq(1,m-1),n)/rep(seq(2,m),n)*t + 1/rep(seq(2,m),n)*sum_entries(u,axis=1),
-                       t%*%matrix(1,nrow=1,ncol=m) + u >=  (diag(1,n)%x%matrix(1,nrow=m-1))%*%slack,
-                       u>=0,
-                       slack >=0)
-  
-  MDuchi <- Problem(objective, constraints)
-  CVXR_MDuchi <- solve(MDuchi, solver = "MOSEK")
-  CVXR_MDuchi_v <- CVXR_MDuchi$getValue(v)
-  CVXR_MDuchi_b <- CVXR_MDuchi$getValue(b)
-  
-  model <- list(v = CVXR_MDuchi_v, b = as.numeric(CVXR_MDuchi_b), kernel = kernel, X = X, y= y)
-  class(model) <- "msvm_kernel"
-  return(model)
-}
+# 
+# 
+# MDuchi_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel){
+#   class_idx <- sort(unique(y))
+#   Y <- sapply(class_idx, function(id){as.numeric(y==id)})
+#   n <- nrow(X)
+#   p <- ncol(X)
+#   m <- length(class_idx)
+#   
+#   K <- kernelMatrix(kernel, X)
+#   suppressWarnings(class(K) <- "matrix")
+#   
+#   v <- Variable(n,m)
+#   if(intercept == T){
+#     b <- Variable(m)
+#   }else{
+#     b <- rep(0,m)
+#   }
+#   slack <- Variable(rows = n, cols = m)
+#   epsilon <- Variable(n)
+#   t <- Variable(n*(m-1))
+#   u <- Variable(rows = n*(m-1), cols = m)
+#   
+#   objective <- Minimize(lambda*sum(do.call(rbind,sapply(1:m, FUN = function(k){quad_form(v[,k],K)})))/2 +  C*sum(epsilon))
+#   constraints <- list(((K%*%v + matrix(1,nrow=n,ncol =1)%*%t(b))*Y)%*%matrix(1, nrow = m, ncol = m) - (K%*%v  + matrix(1,nrow=n,ncol =1)%*%t(b)) >= (1-Y)*(1-slack),
+#                        sum_entries(b)*matrix(1,nrow=n) + K %*% sum_entries(v, axis = 1) == 0,
+#                        vec(t(epsilon%*%matrix(1,ncol=m-1))) >=  rep(seq(1,m-1),n)/rep(seq(2,m),n)*t + 1/rep(seq(2,m),n)*sum_entries(u,axis=1),
+#                        t%*%matrix(1,nrow=1,ncol=m) + u >=  (diag(1,n)%x%matrix(1,nrow=m-1))%*%slack,
+#                        u>=0,
+#                        slack >=0)
+#   
+#   MDuchi <- Problem(objective, constraints)
+#   CVXR_MDuchi <- solve(MDuchi, solver = "MOSEK")
+#   CVXR_MDuchi_v <- CVXR_MDuchi$getValue(v)
+#   CVXR_MDuchi_b <- CVXR_MDuchi$getValue(b)
+#   
+#   model <- list(v = CVXR_MDuchi_v, b = as.numeric(CVXR_MDuchi_b), kernel = kernel, X = X, y= y)
+#   class(model) <- "msvm_kernel"
+#   return(model)
+# }
 
 
 
@@ -189,8 +202,12 @@ MDuchi_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel
   MDuchi <- Problem(objective, constraints)
   CVXR_MDuchi <- solve(MDuchi, solver = "MOSEK")
   CVXR_MDuchi_v <- CVXR_MDuchi$getValue(v)
-  CVXR_MDuchi_b <- CVXR_MDuchi$getValue(b)
   
+  if(intercept == T){
+    CVXR_MDuchi_b <- CVXR_MDuchi$getValue(b)
+  }else{  
+    CVXR_MDuchi_b <- b
+  }
   model <- list(v = CVXR_MDuchi_v, b = as.numeric(CVXR_MDuchi_b), kernel = kernel, X = X, y= y)
   class(model) <- "msvm_kernel"
   return(model)
@@ -337,8 +354,12 @@ LLW_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel, b
   CVXR_LLW <- solve(LLW, solver = "MOSEK")
   
   CVXR_LLW_v <- CVXR_LLW$getValue(v)
-  CVXR_LLW_b <- CVXR_LLW$getValue(b)
   
+  if(intercept == T){
+    CVXR_LLW_b <- CVXR_LLW$getValue(b)
+  }else{  
+    CVXR_LLW_b <- b
+  }
   model <- list(v = CVXR_LLW_v, b = as.numeric(CVXR_LLW_b), kernel = kernel, X = X, y= y)
   class(model) <- "msvm_kernel"
   return(model)
@@ -410,8 +431,12 @@ MSVM8_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel)
   CVXR_MSVM8 <- solve(MSVM8, solver = "MOSEK")
   
   CVXR_MSVM8_v <- CVXR_MSVM8$getValue(v)
-  CVXR_MSVM8_b <- CVXR_MSVM8$getValue(b)
-  
+ 
+  if(intercept == T){
+    CVXR_MSVM8_b <- CVXR_MSVM8$getValue(b)
+  }else{  
+    CVXR_MSVM8_b <- b
+  }
   
   model <- list(v = CVXR_MSVM8_v, b = as.numeric(CVXR_MSVM8_b), kernel = kernel, X = X, y= y)
   class(model) <- "msvm_kernel"
@@ -447,8 +472,12 @@ OVA_kernel_pri_opt <- function(X, y, C = 1, lambda = 1, intercept = T, kernel){
   CVXR_OVA <- solve(OVA, solver = "MOSEK")
   
   CVXR_OVA_v <- CVXR_OVA$getValue(v)
-  CVXR_OVA_b <- CVXR_OVA$getValue(b)
-  
+
+  if(intercept == T){
+    CVXR_OVA_b <- CVXR_OVA$getValue(b)
+  }else{  
+    CVXR_OVA_b <- b
+  }
   model <- list(v = CVXR_OVA_v, b = as.numeric(CVXR_OVA_b), kernel = kernel, X = X, y= y)
   class(model) <- "msvm_kernel"
   return(model)
@@ -643,4 +672,6 @@ five_class_data_generate <- function(n, sep =  1){
   y <- c(rep(1,nrow(X1)), rep(2,nrow(X2)), rep(3,nrow(X3)), rep(4,nrow(X4)), rep(5,nrow(X5)))
   return(list(X = X,y = y))
 }
-  
+ 
+
+
